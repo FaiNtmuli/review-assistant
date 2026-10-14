@@ -21,17 +21,36 @@ HEADING_RE = re.compile(r"<h([23])>(.*?)</h\1>", re.DOTALL)
 PRE_RE = re.compile(r"<pre><code(?:\s+class=\"[^\"]*\")?>(.*?)</code></pre>", re.DOTALL)
 INLINE_RE = re.compile(r"<code>(.*?)</code>", re.DOTALL)
 
-# 调用链的标记按类型着色，颜色含义与文档开头的标签约定一致
+# 调用链的标记和伪代码按类型着色，颜色含义与文档开头的标签约定一致
 SIDE_EFFECTS = {"网": "net", "印": "log", "进": "proc", "文": "file", "存": "db"}
-TAG_RE = re.compile(r"\[(网|印|进|文|存)\]")
-ARROW_RE = re.compile("⟶")
-RW_RE = re.compile(r"(?<![\w])([RW]):")
 KEYWORDS = (
-    "def", "return", "if", "elif", "else", "for", "while", "try", "except",
-    "finally", "raise", "continue", "break", "import", "lambda", "yield",
-    "pass", "self", "None", "True", "False",
+    "def", "return", "elif", "else", "if", "for", "while", "try", "except",
+    "finally", "raise", "continue", "break", "import", "from", "lambda",
+    "yield", "pass", "self", "None", "True", "False", "not", "and", "or",
+    "is", "in", "with", "class",
 )
-KEYWORD_RE = re.compile(r"(?<![\w.])(?:" + "|".join(KEYWORDS) + r")(?![\w])")
+TOKEN_CLASS = {
+    "str": "tok-str",
+    "kw": "tok-kw",
+    "fn": "tok-fn",
+    "param": "tok-param",
+    "attr": "tok-attr",
+}
+TOKEN_RE = re.compile(
+    r"""
+      (?P<cmt>(?:^|(?<=\s))\#[^\n]*)
+    | (?P<str>f?&quot;[^\n]*?&quot;|f?'(?:[^'\\\n]|\\.)*')
+    | (?P<tag>\[(?:网|印|进|文|存)\])
+    | (?P<ret>⟶)
+    | (?P<rw>(?<![\w])[RW]:)
+    | (?P<kw>(?<![\w.])(?:%s)(?![\w]))
+    | (?P<fn>[A-Za-z_]\w*(?=\s*\())
+    | (?P<param>[A-Za-z_]\w*(?=\s*=[^=]))
+    | (?P<attr>\.[A-Za-z_]\w*)
+    """
+    % "|".join(KEYWORDS),
+    re.VERBOSE | re.MULTILINE,
+)
 
 STYLE = """
 :root {
@@ -41,10 +60,14 @@ STYLE = """
   --line: #d8dee4;
   --code-bg: #f6f8fa;
   --accent: #0969da;
-  --kw: #57606a;
   --cmt: #8b949e;
-  --ret: #8250df;
-  --rw-r: #0969da;
+  --kw: #8250df;
+  --fn: #0550ae;
+  --param: #953800;
+  --attr: #0d7d8f;
+  --str: #0a7a33;
+  --ret: #bf3989;
+  --rw-r: #0550ae;
   --rw-w: #cf222e;
   --sf-net: #0969da;   --sf-net-bg: #ddf4ff;
   --sf-log: #8250df;   --sf-log-bg: #f3ebff;
@@ -60,9 +83,13 @@ STYLE = """
     --line: #2b2f36;
     --code-bg: #1c1f24;
     --accent: #6cb6ff;
-    --kw: #a5b0bd;
     --cmt: #7d8590;
-    --ret: #d2a8ff;
+    --kw: #d2a8ff;
+    --fn: #79c0ff;
+    --param: #ffa657;
+    --attr: #76e3ea;
+    --str: #7ee787;
+    --ret: #f778ba;
     --rw-r: #79c0ff;
     --rw-w: #ff7b72;
     --sf-net: #79c0ff;   --sf-net-bg: rgba(56, 139, 253, 0.18);
@@ -137,16 +164,21 @@ pre code {
   background: none;
   border: 0;
   padding: 0;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 13.5px;
+  line-height: 1.68;
   white-space: pre;
   tab-size: 4;
 }
-.kw { color: var(--kw); font-weight: 500; }
-.c { color: var(--cmt); }
-.ret { color: var(--ret); font-weight: 600; }
-.rw-r { color: var(--rw-r); font-weight: 600; }
-.rw-w { color: var(--rw-w); font-weight: 600; }
+.cmt { color: var(--cmt); }
+.tok-kw { color: var(--kw); }
+.tok-fn { color: var(--fn); }
+.tok-param { color: var(--param); }
+.tok-attr { color: var(--attr); }
+.tok-str { color: var(--str); }
+.ret { color: var(--ret); font-weight: 700; }
+.rw { font-weight: 700; }
+.rw-r { color: var(--rw-r); }
+.rw-w { color: var(--rw-w); }
 .tag { border-radius: 4px; padding: 0 4px; font-weight: 600; }
 .tag.net { color: var(--sf-net); background: var(--sf-net-bg); }
 .tag.log { color: var(--sf-log); background: var(--sf-log-bg); }
@@ -219,30 +251,31 @@ def slugify(text: str, used: dict[str, int]) -> str:
     return base if count == 0 else f"{base}-{count}"
 
 
-def color_tokens(text: str) -> str:
-    """给一行的标记着色。先后顺序固定，避免后一步匹配到前一步插入的标签。"""
-    text = KEYWORD_RE.sub(lambda m: f'<span class="kw">{m.group(0)}</span>', text)
-    text = RW_RE.sub(lambda m: f'<span class="rw-{m.group(1).lower()}">{m.group(1)}:</span>', text)
-    text = TAG_RE.sub(
-        lambda m: f'<span class="tag {SIDE_EFFECTS[m.group(1)]}">[{m.group(1)}]</span>', text
-    )
-    return ARROW_RE.sub('<span class="ret">⟶</span>', text)
+def tokenize(text: str, in_comment: bool = False) -> str:
+    """单次扫描着色。
 
+    一次扫完所有标记的好处是每一步都在原始文本上匹配，不会命中上一步插入的标签；
+    分多轮替换则要先插入再匹配，后一轮容易吃掉前一轮的标签。
+    """
 
-def split_comment(line: str) -> tuple[str, str | None]:
-    """把行尾注释切开。只有位于行首或空白之后的 # 才算注释起点。"""
-    for index, char in enumerate(line):
-        if char == "#" and (index == 0 or line[index - 1] in " \t"):
-            return line[:index], line[index:]
-    return line, None
+    def repl(match: re.Match[str]) -> str:
+        kind = match.lastgroup
+        value = match.group(0)
+        if kind == "cmt":
+            if in_comment:
+                return value
+            # 注释整体弱化，但注释内部的 R:、W:、标签仍然识别。
+            # 递归时丢掉开头的 #，否则它会再次命中外层的注释分支，把整行吃掉。
+            return '<span class="cmt">#' + tokenize(value[1:], True) + "</span>"
+        if kind == "tag":
+            return f'<span class="tag {SIDE_EFFECTS[value[1]]}">{value}</span>'
+        if kind == "rw":
+            return f'<span class="rw rw-{value[0].lower()}">{value}</span>'
+        if kind == "ret":
+            return '<span class="ret">⟶</span>'
+        return f'<span class="{TOKEN_CLASS[kind]}">{value}</span>'
 
-
-def color_line(line: str) -> str:
-    head, comment = split_comment(line)
-    head = color_tokens(head)
-    if comment is None:
-        return head
-    return head + '<span class="c">' + color_tokens(comment) + "</span>"
+    return TOKEN_RE.sub(repl, text)
 
 
 def color_code_blocks(html: str) -> str:
@@ -254,11 +287,11 @@ def color_code_blocks(html: str) -> str:
         return f"\x00BLOCK{len(blocks) - 1}\x00"
 
     html = PRE_RE.sub(stash, html)
-    html = INLINE_RE.sub(lambda m: f"<code>{color_tokens(m.group(1))}</code>", html)
+    html = INLINE_RE.sub(lambda m: f"<code>{tokenize(m.group(1))}</code>", html)
 
     def restore(match: re.Match[str]) -> str:
         inner = blocks[int(match.group(1))]
-        body = "\n".join(color_line(line) for line in inner.split("\n"))
+        body = "\n".join(tokenize(line) for line in inner.split("\n"))
         return f"<pre><code>{body}</code></pre>"
 
     return re.sub(r"\x00BLOCK(\d+)\x00", restore, html)

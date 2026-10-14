@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>调用链</title>
+<title>调用链：一次 review run 的完整执行</title>
 <style>
 :root {
   --bg: #ffffff;
@@ -12,10 +12,14 @@
   --line: #d8dee4;
   --code-bg: #f6f8fa;
   --accent: #0969da;
-  --kw: #57606a;
   --cmt: #8b949e;
-  --ret: #8250df;
-  --rw-r: #0969da;
+  --kw: #8250df;
+  --fn: #0550ae;
+  --param: #953800;
+  --attr: #0d7d8f;
+  --str: #0a7a33;
+  --ret: #bf3989;
+  --rw-r: #0550ae;
   --rw-w: #cf222e;
   --sf-net: #0969da;   --sf-net-bg: #ddf4ff;
   --sf-log: #8250df;   --sf-log-bg: #f3ebff;
@@ -31,9 +35,13 @@
     --line: #2b2f36;
     --code-bg: #1c1f24;
     --accent: #6cb6ff;
-    --kw: #a5b0bd;
     --cmt: #7d8590;
-    --ret: #d2a8ff;
+    --kw: #d2a8ff;
+    --fn: #79c0ff;
+    --param: #ffa657;
+    --attr: #76e3ea;
+    --str: #7ee787;
+    --ret: #f778ba;
     --rw-r: #79c0ff;
     --rw-w: #ff7b72;
     --sf-net: #79c0ff;   --sf-net-bg: rgba(56, 139, 253, 0.18);
@@ -108,16 +116,21 @@ pre code {
   background: none;
   border: 0;
   padding: 0;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 13.5px;
+  line-height: 1.68;
   white-space: pre;
   tab-size: 4;
 }
-.kw { color: var(--kw); font-weight: 500; }
-.c { color: var(--cmt); }
-.ret { color: var(--ret); font-weight: 600; }
-.rw-r { color: var(--rw-r); font-weight: 600; }
-.rw-w { color: var(--rw-w); font-weight: 600; }
+.cmt { color: var(--cmt); }
+.tok-kw { color: var(--kw); }
+.tok-fn { color: var(--fn); }
+.tok-param { color: var(--param); }
+.tok-attr { color: var(--attr); }
+.tok-str { color: var(--str); }
+.ret { color: var(--ret); font-weight: 700; }
+.rw { font-weight: 700; }
+.rw-r { color: var(--rw-r); }
+.rw-w { color: var(--rw-w); }
 .tag { border-radius: 4px; padding: 0 4px; font-weight: 600; }
 .tag.net { color: var(--sf-net); background: var(--sf-net-bg); }
 .tag.log { color: var(--sf-log); background: var(--sf-log-bg); }
@@ -159,880 +172,811 @@ blockquote {
 <aside>
 <nav class="toc" aria-label="目录">
 <p class="toc-title">目录</p>
-<ol><li class="lvl2"><a href="#〇-总览">〇 总览</a></li><li class="lvl2"><a href="#一-入口">一 入口</a></li><li class="lvl2"><a href="#二-配置">二 配置</a></li><li class="lvl2"><a href="#三-图的组装">三 图的组装</a></li><li class="lvl2"><a href="#四-驱动循环">四 驱动循环</a></li><li class="lvl2"><a href="#五-读入">五 读入</a></li><li class="lvl2"><a href="#六-解析与扇出">六 解析与扇出</a></li><li class="lvl2"><a href="#七-分类">七 分类</a></li><li class="lvl2"><a href="#八-生成意见">八 生成意见</a></li><li class="lvl2"><a href="#九-单次模型调用">九 单次模型调用</a></li><li class="lvl2"><a href="#十-校验">十 校验</a></li><li class="lvl2"><a href="#十一-重做">十一 重做</a></li><li class="lvl2"><a href="#十二-汇总">十二 汇总</a></li><li class="lvl2"><a href="#十三-人工确认与落盘">十三 人工确认与落盘</a></li><li class="lvl2"><a href="#十四-其他子命令">十四 其他子命令</a></li><li class="lvl2"><a href="#十五-数据注入链">十五 数据注入链</a></li><li class="lvl3"><a href="#15-1-改动文本进入审查提示词">15.1 改动文本进入审查提示词</a></li><li class="lvl3"><a href="#15-2-意见进入校验提示词">15.2 意见进入校验提示词</a></li><li class="lvl3"><a href="#15-3-校验结论进入重做提示词">15.3 校验结论进入重做提示词</a></li><li class="lvl3"><a href="#15-4-配置与密钥进入每次模型调用">15.4 配置与密钥进入每次模型调用</a></li><li class="lvl3"><a href="#15-5-结果进入报告文件">15.5 结果进入报告文件</a></li><li class="lvl3"><a href="#15-6-人的选择进入图">15.6 人的选择进入图</a></li></ol>
+<ol><li class="lvl2"><a href="#一-调用链">一 调用链</a></li><li class="lvl2"><a href="#二-数据注入链">二 数据注入链</a></li><li class="lvl3"><a href="#2-1-改动文本进入审查提示词">2.1 改动文本进入审查提示词</a></li><li class="lvl3"><a href="#2-2-意见进入校验提示词">2.2 意见进入校验提示词</a></li><li class="lvl3"><a href="#2-3-校验结论进入重做提示词">2.3 校验结论进入重做提示词</a></li><li class="lvl3"><a href="#2-4-配置与密钥进入每次模型调用">2.4 配置与密钥进入每次模型调用</a></li><li class="lvl3"><a href="#2-5-结果进入报告文件">2.5 结果进入报告文件</a></li><li class="lvl3"><a href="#2-6-人的选择进入图">2.6 人的选择进入图</a></li></ol>
 </nav>
 </aside>
 <main>
-<h1>调用链</h1>
-<p>骨架是函数调用，同时标注控制流、数据依赖、状态写入和副作用。</p>
-<p>标签约定：</p>
+<h1>调用链：一次 review run 的完整执行</h1>
+<p>用例：</p>
+<pre><code>review run --patch samples/demo<span class="tok-attr">.diff</span> --out out_reject ^
+           --reject-first <span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span> --auto-approve
+</code></pre>
+<p>选它的原因：这一次运行把两条回头环都走到了。自动重做环走了一轮（校验有 1 条没通过），
+人工打回环走了一轮（第一次人工确认选了打回并带反馈）。<code>--reject-first</code> 等价于在第一次
+人工确认时选 r 并输入那段反馈，<code>--auto-approve</code> 等价于第二次确认时选 a。</p>
+<p>画法约定：</p>
 <ul>
-<li><code><span class="ret">⟶</span> result</code> 表示把返回值绑定到 result。</li>
-<li><code><span class="rw-r">R:</span></code> 读取函数边界之外已有的数据；<code><span class="rw-w">W:</span></code> 修改函数边界之外已有的状态。</li>
-<li>副作用：<code><span class="tag net">[网]</span></code> 网络调用，<code><span class="tag log">[印]</span></code> 输出，<code><span class="tag proc">[进]</span></code> 进程/命令，<code><span class="tag file">[文]</span></code> 文件读写，<code><span class="tag db">[存]</span></code> 持久化。</li>
-<li>框架内部（typer、rich、pydantic、langgraph 的调度实现）不展开，只在调用处保留摘要。</li>
+<li>树形缩进表示函数的展开关系。被调用的函数写在调用点下方并缩进一级，展开后的函数体再缩进一级。</li>
+<li>控制结构按源码缩进写，不额外增加树的层级。</li>
+<li><code><span class="ret">⟶</span> result</code> 表示返回值绑定到 result；无返回值或忽略返回值时只写调用。</li>
+<li><code><span class="rw rw-r">R:</span></code> 读取边界之外已有的数据，<code><span class="rw rw-w">W:</span></code> 修改边界之外已有的状态。</li>
+<li>副作用：<code><span class="tag net">[网]</span></code> 网络调用，<code><span class="tag log">[印]</span></code> 输出，<code><span class="tag proc">[进]</span></code> 进程或命令，<code><span class="tag file">[文]</span></code> 文件读写，<code><span class="tag db">[存]</span></code> 持久化。</li>
+<li>同一个函数第二次出现时不再展开，作为叶节点保留调用和结果，并注明它走的是哪个分支。</li>
+<li>框架内部（typer、rich、pydantic、langgraph 的调度实现、openai 客户端）不展开。</li>
+<li>会话号、密钥等取自真实运行，密钥一律写成 <code>sk-...</code>。</li>
 </ul>
-<h2 id="〇-总览">〇 总览</h2>
-<pre><code>main()
-    app()                                                   <span class="c"># typer 按子命令分发  <span class="tag log">[印]</span></span>
-        run(...)  → 见第一节
-        resume(...)  → 见第十一节
-        doctor(...) / ingest(...) / graph() / show(...) / checkpoint(...)  → 见第十一节
+<h2 id="一-调用链">一 调用链</h2>
+<pre><code><span class="tok-fn">main</span>()                                                                  <span class="cmt"># 进程入口</span>
+    <span class="tok-fn">app</span>()                                                               <span class="cmt"># typer 解析参数并分发  <span class="tag log">[印]</span></span>
+        <span class="tok-fn">run</span>(<span class="tok-param">from_git</span>=<span class="tok-kw">None</span>, <span class="tok-param">patch</span>=<span class="tok-str">&quot;samples/demo.diff&quot;</span>, <span class="tok-param">diff_text</span>=<span class="tok-kw">None</span>,
+            <span class="tok-param">out</span>=<span class="tok-str">&quot;out_reject&quot;</span>, <span class="tok-param">kind</span>=<span class="tok-str">&quot;memory&quot;</span>, <span class="tok-param">db</span>=<span class="tok-str">&quot;checkpoints.db&quot;</span>, <span class="tok-param">thread</span>=<span class="tok-kw">None</span>, <span class="tok-param">paths</span>=<span class="tok-kw">None</span>,
+            <span class="tok-param">model</span>=<span class="tok-kw">None</span>, <span class="tok-param">base_url</span>=<span class="tok-kw">None</span>, <span class="tok-param">max_concurrency</span>=4, <span class="tok-param">max_rounds</span>=3,
+            <span class="tok-param">auto_approve</span>=<span class="tok-kw">True</span>, <span class="tok-param">pause_at_review</span>=<span class="tok-kw">False</span>,
+            <span class="tok-param">reject_first</span>=<span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span>)
+            <span class="tok-param">source</span> = <span class="tok-fn">_resolve_source</span>(<span class="tok-kw">None</span>, <span class="tok-str">&quot;samples/demo.diff&quot;</span>, <span class="tok-kw">None</span>) <span class="ret">⟶</span> {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;patch&quot;</span>, <span class="tok-str">&quot;path&quot;</span>: <span class="tok-str">&quot;samples/demo.diff&quot;</span>}
+                <span class="tok-param">given</span> = [value <span class="tok-kw">for</span> value <span class="tok-kw">in</span> (<span class="tok-kw">None</span>, <span class="tok-str">&quot;samples/demo.diff&quot;</span>, <span class="tok-kw">None</span>) <span class="tok-kw">if</span> value] <span class="ret">⟶</span> [<span class="tok-str">&quot;samples/demo.diff&quot;</span>]
+                <span class="tok-kw">if</span> <span class="tok-fn">len</span>(given) != 1:                        <span class="cmt"># 1 == 1，不成立</span>
+                    <span class="tok-kw">raise</span> <span class="tok-fn">BadParameter</span>(<span class="tok-str">&quot;改动来源三选一：--from-git 或 --patch 或 --diff-text&quot;</span>)
+                <span class="tok-kw">if</span> from_git:                               <span class="cmt"># 不成立</span>
+                    <span class="tok-kw">return</span> {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;git&quot;</span>, <span class="tok-str">&quot;range&quot;</span>: from_git}
+                <span class="tok-kw">if</span> patch:                                  <span class="cmt"># 成立</span>
+                    <span class="tok-kw">return</span> {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;patch&quot;</span>, <span class="tok-str">&quot;path&quot;</span>: <span class="tok-str">&quot;samples/demo.diff&quot;</span>}
+                <span class="tok-kw">return</span> {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;text&quot;</span>, <span class="tok-str">&quot;text&quot;</span>: diff_text <span class="tok-kw">or</span> <span class="tok-str">&quot;&quot;</span>}
 
-run(from_git, patch, diff_text, out, kind, db, thread, paths,
-    model, base_url, max_concurrency, max_rounds,
-    auto_approve, pause_at_review, reject_first)                                 <span class="tag net">[网]</span><span class="tag log">[印]</span><span class="tag proc">[进]</span><span class="tag file">[文]</span><span class="tag db">[存]</span>
-    _drive(compiled, initial, config, ...) <span class="ret">⟶</span> values
-        stream(payload, config, stream_mode=&quot;updates&quot;) <span class="ret">⟶</span> 生成器                   <span class="tag net">[网]</span><span class="tag file">[文]</span><span class="tag db">[存]</span>
-            <span class="c"># 下面九个节点由 LangGraph 依连线调度。每个节点收到共享状态，</span>
-            <span class="c"># 返回值按合并规则写回状态；节点之间不直接互调。</span>
-            ingest(state) <span class="ret">⟶</span> {diff_text, source, history}
-            parse_diff(state) <span class="ret">⟶</span> {files, history}
-            classify(state) <span class="ret">⟶</span> {files, history}
-            fan_out_files(state) <span class="ret">⟶</span> [Send(&quot;review_file&quot;, {file, settings}), ...] 或 &quot;aggregate&quot;
-                review_file({file, settings}) <span class="ret">⟶</span> {drafts, history}     <span class="c"># 每文件一路，并发</span>
-            verify(state) <span class="ret">⟶</span> {verdicts, history}
-            route_after_verify(state) <span class="ret">⟶</span> &quot;revise&quot; | &quot;aggregate&quot;
-                revise(state) <span class="ret">⟶</span> {drafts, revision_round, human_feedback, history}
-                verify(state)                                          <span class="c"># 回到校验，最多 max_rounds 轮</span>
-            aggregate(state) <span class="ret">⟶</span> {report, history}
-            human_gate(state) <span class="ret">⟶</span> {decision, human_feedback, revision_round, history}
-            route_after_human_gate(state) <span class="ret">⟶</span> &quot;finalize&quot; | &quot;revise&quot; | END
-                finalize(state) <span class="ret">⟶</span> {output_paths, history}
-        get_state(config) <span class="ret">⟶</span> snapshot
-        _first_interrupt(snapshot) <span class="ret">⟶</span> 中断载荷 | <span class="kw">None</span>
-        _print_report(...) / _interactive_decision() <span class="ret">⟶</span> decision
-        Command(resume=decision)                               <span class="c"># 带着人的选择重新进入 human_gate</span>
+            <span class="tok-param">path_filter</span> = <span class="tok-fn">parse_paths</span>(<span class="tok-kw">None</span>) <span class="ret">⟶</span> []
+                <span class="tok-kw">if</span> <span class="tok-kw">not</span> raw:                                <span class="cmt"># 成立</span>
+                    <span class="tok-kw">return</span> []
+                <span class="tok-kw">return</span> [part<span class="tok-attr">.strip</span>() <span class="tok-kw">for</span> part <span class="tok-kw">in</span> raw<span class="tok-attr">.split</span>(<span class="tok-str">&quot;,&quot;</span>) <span class="tok-kw">if</span> part<span class="tok-attr">.strip</span>()]
+
+            <span class="tok-param">settings</span> = <span class="tok-fn">load_settings</span>(<span class="tok-param">model</span>=<span class="tok-kw">None</span>, <span class="tok-param">base_url</span>=<span class="tok-kw">None</span>,
+                                     <span class="tok-param">max_concurrency</span>=4, <span class="tok-param">max_rounds</span>=3) <span class="ret">⟶</span> Settings
+                <span class="tok-fn">load_dotenv</span>(<span class="tok-kw">None</span>, <span class="tok-param">override</span>=<span class="tok-kw">False</span>)                                  <span class="tag file">[文]</span>
+                <span class="rw rw-r">R:</span> 环境变量、<span class="tok-attr">.env</span> 文件
+                <span class="tok-param">resolved</span> = {
+                    <span class="tok-str">&quot;model&quot;</span>: <span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_MODEL&quot;</span>, <span class="tok-str">&quot;deepseek-chat&quot;</span>) <span class="ret">⟶</span> <span class="tok-str">&quot;deepseek-chat&quot;</span>,
+                    <span class="tok-str">&quot;base_url&quot;</span>: <span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_BASE_URL&quot;</span>, <span class="tok-str">&quot;https://api.deepseek.com/v1&quot;</span>)
+                                <span class="ret">⟶</span> <span class="tok-str">&quot;https://api.deepseek.com/v1&quot;</span>,
+                    <span class="tok-str">&quot;api_key&quot;</span>: <span class="tok-fn">resolve_api_key</span>() <span class="ret">⟶</span> <span class="tok-str">&quot;sk-...&quot;</span>,
+                        <span class="tok-kw">return</span> <span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_API_KEY&quot;</span>) <span class="tok-kw">or</span> <span class="tok-fn">getenv</span>(<span class="tok-str">&quot;DEEPSEEK_API_KEY&quot;</span>)
+                               <span class="tok-kw">or</span> <span class="tok-fn">getenv</span>(<span class="tok-str">&quot;OPENAI_API_KEY&quot;</span>) <span class="tok-kw">or</span> <span class="tok-str">&quot;not-needed&quot;</span>
+                        <span class="cmt"># DEEPSEEK_API_KEY 命中，返回它</span>
+                    <span class="tok-str">&quot;temperature&quot;</span>: <span class="tok-fn">float</span>(<span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_TEMPERATURE&quot;</span>, <span class="tok-str">&quot;0&quot;</span>)) <span class="ret">⟶</span> 0.0,
+                    <span class="tok-str">&quot;max_concurrency&quot;</span>: <span class="tok-fn">int</span>(<span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_MAX_CONCURRENCY&quot;</span>, <span class="tok-str">&quot;4&quot;</span>)) <span class="ret">⟶</span> 4,
+                    <span class="tok-str">&quot;max_rounds&quot;</span>: <span class="tok-fn">int</span>(<span class="tok-fn">getenv</span>(<span class="tok-str">&quot;REVIEW_MAX_ROUNDS&quot;</span>, <span class="tok-str">&quot;3&quot;</span>)) <span class="ret">⟶</span> 3,
+                }
+                <span class="tok-kw">for</span> key, value <span class="tok-kw">in</span> overrides<span class="tok-attr">.items</span>():
+                    <span class="tok-kw">if</span> value <span class="tok-kw">is</span> <span class="tok-kw">not</span> <span class="tok-kw">None</span>:
+                        resolved[key] = value              <span class="cmt"># 命令行的 4 和 3 覆盖同名的环境变量值</span>
+                <span class="tok-kw">return</span> <span class="tok-fn">Settings</span>(**resolved) <span class="ret">⟶</span> <span class="tok-fn">Settings</span>(<span class="tok-param">model</span>=<span class="tok-str">&quot;deepseek-chat&quot;</span>, <span class="tok-param">temperature</span>=0.0,
+                                                       <span class="tok-param">timeout</span>=180.0, <span class="tok-param">max_comments_per_file</span>=8, ...)
+
+            <span class="tok-param">thread_id</span> = <span class="tok-kw">None</span> <span class="tok-kw">or</span> <span class="tok-fn">uuid4</span>()<span class="tok-attr">.hex</span>[:12] <span class="ret">⟶</span> <span class="tok-str">&quot;2699f40ae94f&quot;</span>
+            <span class="tok-param">config</span> = {<span class="tok-str">&quot;configurable&quot;</span>: {<span class="tok-str">&quot;thread_id&quot;</span>: <span class="tok-str">&quot;2699f40ae94f&quot;</span>}, <span class="tok-str">&quot;max_concurrency&quot;</span>: 4}
+
+            <span class="tok-fn">print</span>(<span class="tok-str">&quot;会话 2699f40ae94f｜模型 deepseek-chat｜检查点 memory｜并发 4&quot;</span>)               <span class="tag log">[印]</span>
+            <span class="tok-kw">if</span> path_filter:                                <span class="cmt"># [] 为假，不成立，跳过</span>
+                <span class="tok-fn">print</span>(<span class="tok-str">&quot;只审查路径里包含 [] 的文件&quot;</span>)
+
+            <span class="tok-param">compiled</span> = <span class="tok-fn">build_graph</span>(<span class="tok-fn">make_checkpointer</span>(<span class="tok-str">&quot;memory&quot;</span>, <span class="tok-str">&quot;checkpoints.db&quot;</span>)) <span class="ret">⟶</span> CompiledStateGraph
+                <span class="tok-fn">make_checkpointer</span>(<span class="tok-str">&quot;memory&quot;</span>, <span class="tok-str">&quot;checkpoints.db&quot;</span>) <span class="ret">⟶</span> InMemorySaver
+                    <span class="tok-kw">if</span> kind == <span class="tok-str">&quot;memory&quot;</span>:                   <span class="cmt"># 成立</span>
+                        <span class="tok-kw">return</span> <span class="tok-fn">InMemorySaver</span>(<span class="tok-param">serde</span>=<span class="tok-fn">make_serde</span>())
+                            <span class="tok-fn">make_serde</span>() <span class="ret">⟶</span> JsonPlusSerializer
+                                <span class="cmt"># 叶：把状态里的六个自定义类型登记进序列化器白名单</span>
+                    <span class="tok-kw">if</span> kind == <span class="tok-str">&quot;sqlite&quot;</span>:                   <span class="cmt"># 不成立</span>
+                        ...
+                <span class="tok-fn">build_graph</span>(<span class="tok-param">saver</span>=<span class="tok-kw">None</span>) <span class="ret">⟶</span> CompiledStateGraph
+                    <span class="tok-param">builder</span> = <span class="tok-fn">StateGraph</span>(ReviewState)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;ingest&quot;</span>, ingest)    <span class="cmt"># 下面九行逐个登记节点函数</span>
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;parse_diff&quot;</span>, parse_diff)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;classify&quot;</span>, classify)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;review_file&quot;</span>, review_file)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;verify&quot;</span>, verify)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;revise&quot;</span>, revise)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;aggregate&quot;</span>, aggregate)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;human_gate&quot;</span>, human_gate)
+                    <span class="tok-fn">add_node</span>(builder, <span class="tok-str">&quot;finalize&quot;</span>, finalize)
+                    <span class="tok-fn">add_edge</span>(builder, START, <span class="tok-str">&quot;ingest&quot;</span>)                     <span class="cmt"># 主线</span>
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;ingest&quot;</span>, <span class="tok-str">&quot;parse_diff&quot;</span>)
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;parse_diff&quot;</span>, <span class="tok-str">&quot;classify&quot;</span>)
+                    <span class="tok-fn">add_conditional_edges</span>(builder, <span class="tok-str">&quot;classify&quot;</span>, fan_out_files,
+                                          [<span class="tok-str">&quot;review_file&quot;</span>, <span class="tok-str">&quot;aggregate&quot;</span>])    <span class="cmt"># 分叉</span>
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;review_file&quot;</span>, <span class="tok-str">&quot;verify&quot;</span>)             <span class="cmt"># 汇合</span>
+                    <span class="tok-fn">add_conditional_edges</span>(builder, <span class="tok-str">&quot;verify&quot;</span>, route_after_verify,
+                                          [<span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;aggregate&quot;</span>])         <span class="cmt"># 重试环的出口</span>
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;verify&quot;</span>)                  <span class="cmt"># 重试环的回边</span>
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;aggregate&quot;</span>, <span class="tok-str">&quot;human_gate&quot;</span>)
+                    <span class="tok-fn">add_conditional_edges</span>(builder, <span class="tok-str">&quot;human_gate&quot;</span>, route_after_human_gate,
+                                          [<span class="tok-str">&quot;finalize&quot;</span>, <span class="tok-str">&quot;revise&quot;</span>, END])     <span class="cmt"># 人工打回的出口</span>
+                    <span class="tok-fn">add_edge</span>(builder, <span class="tok-str">&quot;finalize&quot;</span>, END)
+                    <span class="tok-kw">return</span> <span class="tok-fn">compile</span>(builder, <span class="tok-param">checkpointer</span>=saver) <span class="ret">⟶</span> CompiledStateGraph
+
+            <span class="tok-param">initial</span> = {<span class="tok-str">&quot;diff_source&quot;</span>: {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;patch&quot;</span>, <span class="tok-str">&quot;path&quot;</span>: <span class="tok-str">&quot;samples/demo.diff&quot;</span>},
+                       <span class="tok-str">&quot;output_dir&quot;</span>: <span class="tok-str">&quot;out_reject&quot;</span>,
+                       <span class="tok-str">&quot;path_filter&quot;</span>: [],
+                       <span class="tok-str">&quot;settings&quot;</span>: settings<span class="tok-attr">.for_state</span>() <span class="ret">⟶</span> {...},       <span class="cmt"># 弹出的那份不含 api_key</span>
+                           <span class="tok-param">data</span> = <span class="tok-fn">model_dump</span>()
+                           data<span class="tok-attr">.pop</span>(<span class="tok-str">&quot;api_key&quot;</span>, <span class="tok-kw">None</span>)                   <span class="cmt"># 密钥不进状态，检查点会落盘</span>
+                           <span class="tok-kw">return</span> data
+                       <span class="tok-str">&quot;drafts&quot;</span>: {}, <span class="tok-str">&quot;verdicts&quot;</span>: {},
+                       <span class="tok-str">&quot;revision_round&quot;</span>: 0, <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>, <span class="tok-str">&quot;history&quot;</span>: []}
+            <span class="rw rw-w">W:</span> 这是整张图的初始状态，之后每个节点都在它之上累积
+
+            <span class="tok-kw">if</span> pause_at_review:                            <span class="cmt"># <span class="tok-kw">False</span>，跳过</span>
+                <span class="tok-fn">print</span>(<span class="tok-str">f&quot;恢复命令：review resume --thread {thread_id} --db {db} --auto-approve&quot;</span>)
+
+            <span class="tok-param">values</span> = <span class="tok-fn">_drive</span>(compiled, initial, config, <span class="tok-kw">True</span>,
+                            <span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span>, <span class="tok-kw">False</span>) <span class="ret">⟶</span> dict
+
+                <span class="tok-param">rejected</span> = <span class="tok-kw">False</span>
+                <span class="tok-kw">while</span> <span class="tok-kw">True</span>:                                <span class="cmt"># ── 第 1 轮 ──</span>
+                    <span class="tok-kw">for</span> chunk <span class="tok-kw">in</span> <span class="tok-fn">stream</span>(initial, config, <span class="tok-param">stream_mode</span>=<span class="tok-str">&quot;updates&quot;</span>):
+                        <span class="cmt"># stream 由 LangGraph 驱动整张图：按连线顺序调用下列节点，每完成</span>
+                        <span class="cmt"># 一个节点产出一个 chunk。节点之间不直接互调，都通过共享状态交换</span>
+                        <span class="cmt"># 数据；chunk 回到本循环体打印一条 history，调用与打印是交错的。</span>
+                        <span class="tok-fn">ingest</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;diff_text&quot;</span>: ..., <span class="tok-str">&quot;source&quot;</span>: <span class="tok-str">&quot;patch samples\\demo.diff&quot;</span>,
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;ingest：读入 patch samples\\demo.diff，82 行 diff&quot;</span>]}
+                            <span class="tok-param">source</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;diff_source&quot;</span>) <span class="ret">⟶</span> {<span class="tok-str">&quot;type&quot;</span>: <span class="tok-str">&quot;patch&quot;</span>, <span class="tok-str">&quot;path&quot;</span>: <span class="tok-str">&quot;samples/demo.diff&quot;</span>}
+                            <span class="tok-param">kind</span> = source<span class="tok-attr">.get</span>(<span class="tok-str">&quot;type&quot;</span>, <span class="tok-str">&quot;git&quot;</span>) <span class="ret">⟶</span> <span class="tok-str">&quot;patch&quot;</span>
+                            <span class="tok-kw">if</span> kind == <span class="tok-str">&quot;git&quot;</span>:              <span class="cmt"># 不成立，跳过</span>
+                                ...
+                            <span class="tok-kw">elif</span> kind == <span class="tok-str">&quot;patch&quot;</span>:          <span class="cmt"># 成立</span>
+                                <span class="tok-param">path</span> = <span class="tok-fn">Path</span>(source<span class="tok-attr">.get</span>(<span class="tok-str">&quot;path&quot;</span>, <span class="tok-str">&quot;&quot;</span>)) <span class="ret">⟶</span> <span class="tok-fn">WindowsPath</span>(<span class="tok-str">&quot;samples/demo.diff&quot;</span>)
+                                <span class="tok-kw">if</span> <span class="tok-kw">not</span> path<span class="tok-attr">.is_file</span>():     <span class="cmt"># 文件存在，不成立</span>
+                                    <span class="tok-kw">raise</span> <span class="tok-fn">FileNotFoundError</span>(<span class="tok-str">f&quot;找不到改动文件：{path}&quot;</span>)
+                                <span class="tok-param">text</span> = path<span class="tok-attr">.read_text</span>(<span class="tok-param">encoding</span>=<span class="tok-str">&quot;utf-8&quot;</span>, <span class="tok-param">errors</span>=<span class="tok-str">&quot;replace&quot;</span>) <span class="ret">⟶</span> str
+                                    <span class="rw rw-r">R:</span> 磁盘上的 patch 文件                                    <span class="tag file">[文]</span>
+                                <span class="tok-param">label</span> = <span class="tok-str">f&quot;patch {path}&quot;</span> <span class="ret">⟶</span> <span class="tok-str">&quot;patch samples\\demo.diff&quot;</span>
+                            <span class="tok-kw">if</span> <span class="tok-kw">not</span> text<span class="tok-attr">.strip</span>():           <span class="cmt"># 有内容，不成立</span>
+                                <span class="tok-kw">raise</span> <span class="tok-fn">ValueError</span>(<span class="tok-str">f&quot;{label} 里没有任何改动&quot;</span>)
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;diff_text&quot;</span>: text, <span class="tok-str">&quot;source&quot;</span>: label,
+                                    **<span class="tok-fn">log</span>(<span class="tok-str">f&quot;ingest：读入 {label}，{len(text.splitlines())} 行 diff&quot;</span>)}
+                            <span class="rw rw-w">W:</span> diff_text、source、history
+
+                        <span class="tok-fn">parse_diff</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;files&quot;</span>: {...3 个文件...},
+                                             <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;parse_diff：3 个文件，35 行新增&quot;</span>]}
+                            <span class="tok-param">changes</span> = <span class="tok-fn">parse_unified_diff</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;diff_text&quot;</span>, <span class="tok-str">&quot;&quot;</span>)) <span class="ret">⟶</span> list[FileChange]
+                                <span class="cmt"># 叶：逐行扫描 diff 文本，遇 <span class="tok-str">&quot;diff --git&quot;</span> 开新文件、遇 <span class="tok-str">&quot;@@&quot;</span> 开新</span>
+                                <span class="cmt"># hunk，其余按首字符 +、-、空格 归入新增行、删除行、上下文行。</span>
+                                <span class="cmt"># 新增行记为 {新文件行号: 行内容}，这是行号校验的唯一依据。</span>
+                                <span class="cmt"># 内部闭包 <span class="tok-fn">flush</span>() 在文件切换时收尾，它的 <span class="rw rw-w">W:</span> files、current</span>
+                            <span class="tok-param">mapping</span> = {change<span class="tok-attr">.path</span>: change <span class="tok-kw">for</span> change <span class="tok-kw">in</span> changes <span class="tok-kw">if</span> change<span class="tok-attr">.path</span>}
+                            <span class="tok-param">added</span> = <span class="tok-fn">sum</span>(<span class="tok-fn">len</span>(change<span class="tok-attr">.added_lines</span>) <span class="tok-kw">for</span> change <span class="tok-kw">in</span> mapping<span class="tok-attr">.values</span>()) <span class="ret">⟶</span> 35
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;files&quot;</span>: mapping, **<span class="tok-fn">log</span>(...)}
+                            <span class="rw rw-w">W:</span> files、history
+
+                        <span class="tok-fn">classify</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;files&quot;</span>: {... kind 已填 ...},
+                                           <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;classify：app/service.py→python，tests/test_service.py→test，config/prod.yaml→config&quot;</span>]}
+                            <span class="tok-param">files</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;files&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">patterns</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;path_filter&quot;</span>) <span class="tok-kw">or</span> [] <span class="ret">⟶</span> []
+                            selected, <span class="tok-param">dropped</span> = <span class="tok-fn">filter_paths</span>(files, patterns) <span class="ret">⟶</span> (3 个文件, {})
+                                <span class="tok-kw">if</span> <span class="tok-kw">not</span> patterns:           <span class="cmt"># 成立</span>
+                                    <span class="tok-kw">return</span> files, {}
+                                <span class="cmt"># 后面的循环本次未执行</span>
+                            <span class="tok-param">updated</span> = <span class="tok-fn">classify_files</span>(selected) <span class="ret">⟶</span> {...3 个文件，kind 已填...}
+                                <span class="tok-kw">return</span> {path: <span class="tok-fn">classify_file</span>(change) <span class="tok-kw">for</span> path, change <span class="tok-kw">in</span> files<span class="tok-attr">.items</span>()}
+                                    <span class="tok-fn">classify_file</span>(change) <span class="ret">⟶</span> FileChange          <span class="cmt"># 每个文件各调用一次</span>
+                                        kind, lang, <span class="tok-param">is_test</span> = <span class="tok-fn">classify_path</span>(change<span class="tok-attr">.path</span>)
+                                            <span class="tok-param">lang</span> = <span class="tok-fn">detect_lang</span>(path) <span class="ret">⟶</span> <span class="tok-str">&quot;python&quot;</span>
+                                                <span class="cmt"># 叶：按扩展名查表，<span class="tok-attr">.py</span>→python，<span class="tok-attr">.tsx</span>→frontend，</span>
+                                                <span class="cmt"># <span class="tok-attr">.sql</span>→sql，<span class="tok-attr">.yaml</span>→config，<span class="tok-attr">.md</span>→docs，表外为 other</span>
+                                            <span class="tok-param">is_test</span> = <span class="tok-fn">detect_test</span>(path) <span class="ret">⟶</span> <span class="tok-kw">False</span>
+                                                <span class="cmt"># 叶：任一层目录名为 test/tests/spec/specs/</span>
+                                                <span class="cmt"># __tests__/testing，或文件名主体匹配</span>
+                                                <span class="cmt"># test_*、*_test、*<span class="tok-attr">.test</span>、*<span class="tok-attr">.spec</span></span>
+                                            <span class="tok-param">kind</span> = <span class="tok-str">&quot;test&quot;</span> <span class="tok-kw">if</span> is_test <span class="tok-kw">else</span> lang <span class="ret">⟶</span> <span class="tok-str">&quot;python&quot;</span>
+                                            <span class="tok-kw">return</span> kind, lang, is_test
+                                        <span class="tok-kw">return</span> change<span class="tok-attr">.model_copy</span>(<span class="tok-param">update</span>={<span class="tok-str">&quot;kind&quot;</span>: <span class="tok-str">&quot;python&quot;</span>,
+                                                                         <span class="tok-str">&quot;lang&quot;</span>: <span class="tok-str">&quot;python&quot;</span>,
+                                                                         <span class="tok-str">&quot;is_test&quot;</span>: <span class="tok-kw">False</span>})
+                            <span class="tok-param">summary</span> = <span class="tok-str">&quot;，&quot;</span><span class="tok-attr">.join</span>(...) <span class="ret">⟶</span> <span class="tok-str">&quot;app/service.py→python，tests/test_service.py→test，config/prod.yaml→config&quot;</span>
+                            <span class="tok-param">messages</span> = [<span class="tok-str">f&quot;classify：{summary or '没有文件'}&quot;</span>]
+                            <span class="tok-kw">if</span> dropped:                    <span class="cmt"># 空字典，不成立</span>
+                                messages<span class="tok-attr">.append</span>(...)
+                            <span class="tok-kw">if</span> patterns <span class="tok-kw">and</span> <span class="tok-kw">not</span> updated:   <span class="cmt"># [] 为假，不成立</span>
+                                messages<span class="tok-attr">.append</span>(...)
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;files&quot;</span>: updated, <span class="tok-str">&quot;history&quot;</span>: messages}
+                            <span class="rw rw-w">W:</span> files（覆盖为过滤并打标后的集合）、history
+
+                        <span class="tok-fn">fan_out_files</span>(state) <span class="ret">⟶</span> [<span class="tok-fn">Send</span>(<span class="tok-str">&quot;review_file&quot;</span>, {...}), <span class="tok-fn">Send</span>(...), <span class="tok-fn">Send</span>(...)]
+                            <span class="tok-param">files</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;files&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-kw">if</span> <span class="tok-kw">not</span> files:                  <span class="cmt"># 不成立</span>
+                                <span class="tok-kw">return</span> <span class="tok-str">&quot;aggregate&quot;</span>
+                            <span class="tok-param">payload_settings</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>) <span class="ret">⟶</span> {...不含 api_key...}
+                            <span class="tok-kw">return</span> [<span class="tok-fn">Send</span>(<span class="tok-str">&quot;review_file&quot;</span>, {<span class="tok-str">&quot;file&quot;</span>: change<span class="tok-attr">.model_dump</span>(),
+                                                         <span class="tok-str">&quot;settings&quot;</span>: payload_settings})
+                                    <span class="tok-kw">for</span> change <span class="tok-kw">in</span> files<span class="tok-attr">.values</span>()
+                                    <span class="tok-kw">if</span> <span class="tok-kw">not</span> change<span class="tok-attr">.is_binary</span>] <span class="tok-kw">or</span> <span class="tok-str">&quot;aggregate&quot;</span>
+                            <span class="cmt"># 三个文件都不是二进制，得到三条分派指令</span>
+
+                        <span class="tok-fn">review_file</span>({<span class="tok-str">&quot;file&quot;</span>: &lt;app/service<span class="tok-attr">.py</span>&gt;, <span class="tok-str">&quot;settings&quot;</span>: {...}}) <span class="ret">⟶</span> {<span class="tok-str">&quot;drafts&quot;</span>: {...}, <span class="tok-str">&quot;history&quot;</span>: [...]}
+                            <span class="cmt"># 三路并发：这一路展开，另两路见下方叶节点</span>
+                            <span class="cmt"># 被 Send 分派，入口参数只含 file 和 settings，看不到共享状态的其他字段</span>
+                            <span class="tok-param">file_change</span> = <span class="tok-fn">model_validate</span>(FileChange, state[<span class="tok-str">&quot;file&quot;</span>]) <span class="ret">⟶</span> FileChange
+                            <span class="tok-param">settings</span> = Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>)) <span class="ret">⟶</span> Settings
+                                <span class="tok-param">settings</span> = <span class="tok-fn">cls</span>(**(data <span class="tok-kw">or</span> {}))
+                                <span class="tok-kw">if</span> <span class="tok-kw">not</span> settings<span class="tok-attr">.api_key</span>:            <span class="cmt"># 为空，成立</span>
+                                    settings<span class="tok-attr">.api_key</span> = <span class="tok-fn">resolve_api_key</span>() <span class="ret">⟶</span> <span class="tok-str">&quot;sk-...&quot;</span>
+                                        <span class="rw rw-r">R:</span> 环境变量
+                                <span class="tok-kw">return</span> settings
+                            <span class="tok-param">llm</span> = <span class="tok-fn">build_chat_model</span>(settings) <span class="ret">⟶</span> ChatOpenAI
+                                <span class="cmt"># 叶：<span class="tok-fn">ChatOpenAI</span>(<span class="tok-param">model</span>=, <span class="tok-param">base_url</span>=, <span class="tok-param">api_key</span>=, <span class="tok-param">temperature</span>=,</span>
+                                <span class="cmt">#     <span class="tok-param">timeout</span>=, <span class="tok-param">max_retries</span>=1)，只构造客户端，不发起请求</span>
+                            <span class="tok-param">draft</span> = <span class="tok-fn">generate_comments</span>(llm, file_change, settings, <span class="tok-param">attempt</span>=0) <span class="ret">⟶</span> FileDraft
+                                <span class="tok-kw">if</span> previous:                   <span class="cmt"># <span class="tok-kw">None</span>，不成立</span>
+                                    <span class="tok-param">system</span> = REVISE_SYSTEM
+                                    <span class="tok-param">user</span> = <span class="tok-fn">build_revise_prompt</span>(...)
+                                <span class="tok-kw">else</span>:                          <span class="cmt"># 成立</span>
+                                    <span class="tok-param">system</span> = REVIEW_SYSTEM
+                                    <span class="tok-param">user</span> = <span class="tok-fn">build_review_prompt</span>(file_change, 8) <span class="ret">⟶</span> str
+                                        <span class="tok-param">numbered</span> = <span class="tok-fn">render_numbered</span>(file_change) <span class="ret">⟶</span> str
+                                            <span class="cmt"># 叶：每个 hunk 渲染成「行号 + 符号 + 内容」，</span>
+                                            <span class="cmt"># 最多 400 行，超出则截断并标注</span>
+                                        <span class="tok-param">test_hint</span> = <span class="tok-str">&quot;&quot;</span>          <span class="cmt"># is_test 为 <span class="tok-kw">False</span></span>
+                                        <span class="tok-kw">return</span> 拼好的提示词 <span class="ret">⟶</span> str
+                                            <span class="cmt"># 内容依次是：文件路径与改动类型、围栏内的带行号改动块</span>
+                                            <span class="cmt"># （即上面的 numbered）、检查重点、条数上限、</span>
+                                            <span class="cmt"># 以及「evidence 必须逐字复制」的书写要求</span>
+                                            <span class="tok-fn">review_profile</span>(kind) <span class="ret">⟶</span> str
+                                                <span class="tok-param">kind</span> = <span class="tok-str">&quot;python&quot;</span>
+                                                <span class="cmt"># 叶：PROFILES[<span class="tok-str">&quot;python&quot;</span>] 拼接 COMMON_ISSUES，</span>
+                                                <span class="cmt"># 表里没有的类型落到 PROFILES[<span class="tok-str">&quot;other&quot;</span>]</span>
+                                <span class="tok-param">result</span> = <span class="tok-fn">structured_call</span>(llm, CommentOut, system, user) <span class="ret">⟶</span> CommentOut
+                                    <span class="cmt"># 这一次首次调用，展开；后续出现均为叶节点</span>
+                                    <span class="tok-param">runnable</span> = <span class="tok-fn">with_structured_output</span>(llm, CommentOut,
+                                                                      <span class="tok-param">method</span>=<span class="tok-str">&quot;function_calling&quot;</span>)
+                                        <span class="cmt"># 把「按 CommentOut 回答」包装成一个同名工具随请求下发</span>
+                                    <span class="tok-param">messages</span> = [<span class="tok-fn">SystemMessage</span>(<span class="tok-param">content</span>=system),
+                                                <span class="tok-fn">HumanMessage</span>(<span class="tok-param">content</span>=user)]
+                                    <span class="tok-param">last_error</span> = <span class="tok-kw">None</span>
+                                    <span class="tok-kw">for</span> _ <span class="tok-kw">in</span> <span class="tok-fn">range</span>(<span class="tok-fn">max</span>(1, 3)):          <span class="cmt"># 首次即成功</span>
+                                        <span class="tok-kw">try</span>:
+                                            <span class="tok-param">result</span> = <span class="tok-fn">invoke</span>(runnable, messages) <span class="ret">⟶</span> CommentOut        <span class="tag net">[网]</span>
+                                                <span class="cmt"># 叶：一次工具调用请求，返回 CommentOut 实例</span>
+                                        <span class="tok-kw">except</span> Exception as exc:
+                                            <span class="tok-param">last_error</span> = exc
+                                            <span class="tok-kw">continue</span>
+                                        <span class="tok-kw">if</span> <span class="tok-fn">isinstance</span>(result, CommentOut):  <span class="cmt"># 成立</span>
+                                            <span class="tok-kw">return</span> result
+                                        <span class="tok-kw">try</span>:
+                                            <span class="tok-kw">return</span> <span class="tok-fn">model_validate</span>(CommentOut, result)
+                                        <span class="tok-kw">except</span> Exception as exc:
+                                            <span class="tok-param">last_error</span> = exc
+                                    <span class="tok-kw">if</span> last_error <span class="tok-kw">is</span> <span class="tok-kw">None</span>:
+                                        <span class="tok-kw">raise</span> <span class="tok-fn">RuntimeError</span>(<span class="tok-str">&quot;模型没有返回可解析的结构化结果&quot;</span>)
+                                    <span class="tok-kw">raise</span> last_error
+                                <span class="tok-param">comments</span> = [ReviewComment<span class="tok-attr">.from_draft</span>(draft)
+                                            <span class="tok-kw">for</span> draft <span class="tok-kw">in</span> result<span class="tok-attr">.comments</span>[:8]] <span class="ret">⟶</span> list[ReviewComment]
+                                    <span class="cmt"># 每条在此拿到一个 8 位 id，后续校验、汇总都按 id 关联</span>
+                                <span class="tok-kw">return</span> <span class="tok-fn">FileDraft</span>(<span class="tok-param">file_path</span>=<span class="tok-str">&quot;app/service.py&quot;</span>, <span class="tok-param">kind</span>=<span class="tok-str">&quot;python&quot;</span>,
+                                                 <span class="tok-param">comments</span>=comments, <span class="tok-param">attempt</span>=0)
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;drafts&quot;</span>: {<span class="tok-str">&quot;app/service.py&quot;</span>: draft},
+                                    **<span class="tok-fn">log</span>(<span class="tok-str">&quot;review_file：app/service.py 生成 7 条意见&quot;</span>)}
+                            <span class="rw rw-w">W:</span> drafts[<span class="tok-str">&quot;app/service.py&quot;</span>]、history
+
+                        <span class="tok-fn">review_file</span>({<span class="tok-str">&quot;file&quot;</span>: &lt;tests/test_service<span class="tok-attr">.py</span>&gt;, ...}) <span class="ret">⟶</span> {...}
+                            <span class="cmt"># 叶：不展开，与上一路走同一条路径，实际生成 2 条意见</span>
+                            <span class="cmt"># 三路由框架并发调度，各自只写自己那个键，靠「按文件路径覆盖」</span>
+                            <span class="cmt"># 的合并规则拼回状态，互不覆盖</span>
+                        <span class="tok-fn">review_file</span>({<span class="tok-str">&quot;file&quot;</span>: &lt;config/prod<span class="tok-attr">.yaml</span>&gt;, ...}) <span class="ret">⟶</span> {...}
+                            <span class="cmt"># 叶：不展开，同上，实际生成 3 条意见</span>
+
+                        <span class="tok-fn">verify</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;verdicts&quot;</span>: {...},
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;verify：第 1 轮校验 12 条，未通过 1 条&quot;</span>]}
+                            <span class="cmt"># 这一次首次调用，展开；后续出现均为叶节点</span>
+                            <span class="tok-param">drafts</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;drafts&quot;</span>) <span class="ret">⟶</span> {3 个文件的草稿}
+                            <span class="tok-param">files</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;files&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">settings</span> = Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>)) <span class="ret">⟶</span> Settings
+                            <span class="tok-param">llm</span> = <span class="tok-fn">build_chat_model</span>(settings) <span class="ret">⟶</span> ChatOpenAI
+
+                            <span class="tok-fn">check_one</span>(path) <span class="ret">⟶</span> (path, list[CommentVerdict])      <span class="cmt"># 每个文件各调用一次</span>
+                                <span class="rw rw-r">R:</span> drafts、files、llm          <span class="cmt"># 闭包读外层作用域，不在自己的签名里</span>
+                                <span class="tok-param">draft</span> = drafts[path]
+                                <span class="tok-param">change</span> = files<span class="tok-attr">.get</span>(path)
+                                <span class="tok-kw">if</span> change <span class="tok-kw">is</span> <span class="tok-kw">None</span> <span class="tok-kw">or</span> <span class="tok-kw">not</span> draft<span class="tok-attr">.comments</span>:
+                                    <span class="cmt"># app/service<span class="tok-attr">.py</span> 有 7 条意见且文件存在，不成立</span>
+                                    <span class="tok-param">reason</span> = <span class="tok-str">&quot;这个文件不在本次改动里&quot;</span>
+                                    <span class="tok-kw">return</span> path, [<span class="tok-fn">CommentVerdict</span>(<span class="tok-param">passed</span>=<span class="tok-kw">False</span>, ...)]
+
+                                structural, <span class="tok-param">pending</span> = <span class="tok-fn">split_by_structural_check</span>(change, draft<span class="tok-attr">.comments</span>) <span class="ret">⟶</span> (dict, list)
+                                    <span class="tok-param">failures</span> = {}; <span class="tok-param">pending</span> = []
+                                    <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> comments:        <span class="cmt"># 7 条逐条判</span>
+                                        <span class="tok-param">issues</span> = <span class="tok-fn">check_comment</span>(file_change, comment) <span class="ret">⟶</span> list[str]
+                                            <span class="tok-param">issues</span> = []
+                                            <span class="tok-kw">if</span> comment<span class="tok-attr">.file_path</span> != file_change<span class="tok-attr">.path</span>:   <span class="cmt"># 相等，不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;文件路径不对：...&quot;</span>)
+                                            <span class="tok-kw">if</span> comment<span class="tok-attr">.line_start</span> &lt; 1 <span class="tok-kw">or</span> comment<span class="tok-attr">.line_end</span> &lt; comment<span class="tok-attr">.line_start</span>:
+                                                <span class="cmt"># 不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;行号区间不合法：...&quot;</span>)
+                                            <span class="tok-kw">elif</span> comment<span class="tok-attr">.line_end</span> - comment<span class="tok-attr">.line_start</span> &gt; 30:
+                                                <span class="cmt"># 不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;行号区间跨了 N 行，位置不具体...&quot;</span>)
+                                            <span class="tok-param">window</span> = <span class="tok-fn">set</span>(<span class="tok-fn">range</span>(comment<span class="tok-attr">.line_start</span>, comment<span class="tok-attr">.line_end</span> + 1))
+                                            <span class="tok-param">added_numbers</span> = <span class="tok-fn">set</span>(file_change<span class="tok-attr">.added_lines</span>)
+                                            <span class="tok-param">hit</span> = <span class="tok-fn">sorted</span>(window &amp; added_numbers)
+                                            <span class="tok-kw">if</span> <span class="tok-kw">not</span> added_numbers:       <span class="cmt"># 24 行，不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;这个文件没有新增行，无法引用&quot;</span>)
+                                            <span class="tok-kw">elif</span> <span class="tok-kw">not</span> hit:               <span class="cmt"># 命中，不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;行号 a-b 里没有本次新增的行；...&quot;</span>)
+                                            <span class="tok-param">evidence_lines</span> = [<span class="tok-fn">normalize</span>(line)
+                                                              <span class="tok-kw">for</span> line <span class="tok-kw">in</span> comment<span class="tok-attr">.evidence</span><span class="tok-attr">.splitlines</span>()]
+                                            <span class="tok-param">evidence_lines</span> = [line <span class="tok-kw">for</span> line <span class="tok-kw">in</span> evidence_lines <span class="tok-kw">if</span> line]
+                                            <span class="tok-kw">if</span> <span class="tok-kw">not</span> evidence_lines:      <span class="cmt"># 不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;evidence 是空的...&quot;</span>)
+                                                <span class="tok-kw">return</span> issues
+                                            <span class="tok-param">known</span> = <span class="tok-fn">hunk_line_index</span>(file_change) <span class="ret">⟶</span> set[str]
+                                                <span class="cmt"># 叶：改动原文里出现过的所有行（含上下文行、</span>
+                                                <span class="cmt"># 被删行）归一化后放进集合</span>
+                                            <span class="tok-param">missing</span> = [line <span class="tok-kw">for</span> line <span class="tok-kw">in</span> evidence_lines
+                                                       <span class="tok-kw">if</span> line <span class="tok-kw">not</span> <span class="tok-kw">in</span> known]
+                                            <span class="tok-kw">if</span> missing:                 <span class="cmt"># 不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;引用的原文在这个文件的改动里找不到：...&quot;</span>)
+                                                <span class="tok-kw">return</span> issues
+                                            <span class="tok-param">added_index</span> = <span class="tok-fn">added_line_index</span>(file_change) <span class="ret">⟶</span> dict[str, list[int]]
+                                                <span class="cmt"># 叶：归一化后的新增行内容 → 出现它的行号</span>
+                                            <span class="tok-param">anchored</span> = <span class="tok-kw">False</span>
+                                            <span class="tok-kw">for</span> line <span class="tok-kw">in</span> evidence_lines:
+                                                <span class="tok-kw">for</span> number <span class="tok-kw">in</span> added_index<span class="tok-attr">.get</span>(line, []):
+                                                    <span class="tok-kw">if</span> number <span class="tok-kw">in</span> window:
+                                                        <span class="tok-param">anchored</span> = <span class="tok-kw">True</span>
+                                                        <span class="tok-kw">break</span>
+                                                <span class="tok-kw">if</span> anchored:
+                                                    <span class="tok-kw">break</span>
+                                            <span class="tok-kw">if</span> <span class="tok-kw">not</span> anchored:            <span class="cmt"># 不成立</span>
+                                                issues<span class="tok-attr">.append</span>(<span class="tok-str">&quot;引用的原文和给出的行号对不上：...&quot;</span>)
+                                            <span class="tok-kw">return</span> issues
+                                        <span class="tok-fn">normalize</span>(text) <span class="ret">⟶</span> str            <span class="cmt"># 被 check_comment 反复调用</span>
+                                            <span class="tok-kw">return</span> re<span class="tok-attr">.sub</span>(r<span class="tok-str">&quot;\s+&quot;</span>, <span class="tok-str">&quot; &quot;</span>, text)<span class="tok-attr">.strip</span>()
+                                        <span class="tok-kw">if</span> issues:
+                                            failures[comment<span class="tok-attr">.id</span>] = issues
+                                        <span class="tok-kw">else</span>:
+                                            pending<span class="tok-attr">.append</span>(comment)
+                                    <span class="tok-kw">return</span> failures, pending
+                                    <span class="cmt"># 本轮 7 条里 6 条位置过关，1 条失败</span>
+
+                                semantic, <span class="tok-param">error</span> = <span class="tok-fn">semantic_checks</span>(llm, change, pending) <span class="ret">⟶</span> (dict, str)
+                                    <span class="tok-kw">if</span> <span class="tok-kw">not</span> pending:                 <span class="cmt"># 6 条，不成立</span>
+                                        <span class="tok-kw">return</span> {}, <span class="tok-str">&quot;&quot;</span>
+                                    <span class="tok-param">payload</span> = [{<span class="tok-str">&quot;id&quot;</span>: ..., <span class="tok-str">&quot;line_start&quot;</span>: <span class="tok-str">&quot;8&quot;</span>, <span class="tok-str">&quot;line_end&quot;</span>: <span class="tok-str">&quot;9&quot;</span>,
+                                                <span class="tok-str">&quot;evidence&quot;</span>: ..., <span class="tok-str">&quot;title&quot;</span>: ..., <span class="tok-str">&quot;detail&quot;</span>: ...}
+                                               <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> pending]
+                                    <span class="tok-kw">try</span>:
+                                        <span class="tok-param">result</span> = <span class="tok-fn">structured_call</span>(llm, SemanticCheckList,
+                                                                 VERIFY_SYSTEM,
+                                                                 <span class="tok-fn">build_verify_prompt</span>(change, payload))
+                                                 <span class="ret">⟶</span> SemanticCheckList                          <span class="tag net">[网]</span>
+                                            <span class="cmt"># 叶：同一次工具调用路径</span>
+                                            <span class="cmt"># build_verify_prompt 拼入：文件路径、该文件带行号</span>
+                                            <span class="cmt"># 改动块、逐条意见的 id、行号、引用原文、标题、正文</span>
+                                    <span class="tok-kw">except</span> Exception as exc:
+                                        <span class="tok-kw">return</span> {}, <span class="tok-str">f&quot;语义判断调用失败：{exc}&quot;</span>
+                                        <span class="cmt"># 语义判断失败记为不通过，但不中断整张图</span>
+                                    <span class="tok-kw">return</span> {item<span class="tok-attr">.comment_id</span>: item <span class="tok-kw">for</span> item <span class="tok-kw">in</span> result<span class="tok-attr">.checks</span>}, <span class="tok-str">&quot;&quot;</span>
+
+                                <span class="tok-param">results</span> = []
+                                <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> draft<span class="tok-attr">.comments</span>:      <span class="cmt"># 7 条逐条定结论</span>
+                                    <span class="tok-param">issues</span> = structural<span class="tok-attr">.get</span>(comment<span class="tok-attr">.id</span>)
+                                    <span class="tok-kw">if</span> issues:                      <span class="cmt"># 1 条命中</span>
+                                        <span class="tok-param">verdict</span> = <span class="tok-fn">CommentVerdict</span>(<span class="tok-param">comment_id</span>=..., <span class="tok-param">file_path</span>=<span class="tok-str">&quot;app/service.py&quot;</span>,
+                                                                 <span class="tok-param">passed</span>=<span class="tok-kw">False</span>,
+                                                                 <span class="tok-param">structural_issues</span>=issues,
+                                                                 <span class="tok-param">semantic_reason</span>=<span class="tok-str">&quot;位置校验未通过，没有做语义判断&quot;</span>)
+                                    <span class="tok-kw">else</span>:                           <span class="cmt"># 6 条走这里</span>
+                                        <span class="tok-param">item</span> = semantic<span class="tok-attr">.get</span>(comment<span class="tok-attr">.id</span>)
+                                        <span class="tok-param">ok</span> = <span class="tok-fn">bool</span>(item <span class="tok-kw">and</span> item<span class="tok-attr">.supported</span>)
+                                        <span class="tok-param">verdict</span> = <span class="tok-fn">CommentVerdict</span>(<span class="tok-param">comment_id</span>=..., <span class="tok-param">file_path</span>=<span class="tok-str">&quot;app/service.py&quot;</span>,
+                                                                 <span class="tok-param">passed</span>=ok, <span class="tok-param">semantic_ok</span>=ok,
+                                                                 <span class="tok-param">semantic_reason</span>=item<span class="tok-attr">.reason</span> <span class="tok-kw">if</span> item
+                                                                 <span class="tok-kw">else</span> (error <span class="tok-kw">or</span> <span class="tok-str">&quot;模型没有返回这一条的判断&quot;</span>))
+                                    results<span class="tok-attr">.append</span>(verdict)
+                                <span class="tok-kw">return</span> path, results
+                                <span class="cmt"># 注：位置不过关的那条不消耗模型调用，直接带失败原因进结论</span>
+
+                            <span class="tok-param">order</span> = <span class="tok-fn">list</span>(drafts) <span class="ret">⟶</span> [<span class="tok-str">&quot;app/service.py&quot;</span>, <span class="tok-str">&quot;tests/test_service.py&quot;</span>, <span class="tok-str">&quot;config/prod.yaml&quot;</span>]
+                            <span class="tok-param">verdicts</span> = {}
+                            <span class="tok-param">workers</span> = <span class="tok-fn">max</span>(1, settings<span class="tok-attr">.max_concurrency</span>) <span class="ret">⟶</span> 4
+                            <span class="tok-kw">if</span> workers == 1 <span class="tok-kw">or</span> <span class="tok-fn">len</span>(order) &lt;= 1:      <span class="cmt"># 不成立</span>
+                                <span class="tok-kw">for</span> path <span class="tok-kw">in</span> order:
+                                    key, <span class="tok-param">results</span> = <span class="tok-fn">check_one</span>(path)
+                                    verdicts[key] = results
+                            <span class="tok-kw">else</span>:                                    <span class="cmt"># 成立</span>
+                                <span class="tok-kw">with</span> <span class="tok-fn">ThreadPoolExecutor</span>(<span class="tok-param">max_workers</span>=4) as pool:
+                                    <span class="tok-kw">for</span> key, results <span class="tok-kw">in</span> <span class="tok-fn">map</span>(pool, check_one, order):
+                                        verdicts[key] = results
+                                        <span class="cmt"># 叶：三个文件的校验在线程池里并发，内部各自发起 <span class="tag net">[网]</span></span>
+                            <span class="tok-param">checked</span> = <span class="tok-fn">sum</span>(<span class="tok-fn">len</span>(group) <span class="tok-kw">for</span> group <span class="tok-kw">in</span> verdicts<span class="tok-attr">.values</span>()) <span class="ret">⟶</span> 12
+                            <span class="tok-param">failed</span> = <span class="tok-fn">sum</span>(1 <span class="tok-kw">for</span> group <span class="tok-kw">in</span> verdicts<span class="tok-attr">.values</span>()
+                                         <span class="tok-kw">for</span> verdict <span class="tok-kw">in</span> group <span class="tok-kw">if</span> <span class="tok-kw">not</span> verdict<span class="tok-attr">.passed</span>) <span class="ret">⟶</span> 1
+                            <span class="tok-param">round_number</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;revision_round&quot;</span>, 0) <span class="ret">⟶</span> 0
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;verdicts&quot;</span>: verdicts,
+                                    **<span class="tok-fn">log</span>(<span class="tok-str">f&quot;verify：第 {round_number + 1} 轮校验 {checked} 条，&quot;</span>
+                                         <span class="tok-str">f&quot;未通过 {failed} 条&quot;</span>)}
+                            <span class="rw rw-w">W:</span> verdicts、history
+
+                        <span class="tok-fn">route_after_verify</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="tok-param">settings</span> = Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>)) <span class="ret">⟶</span> Settings
+                            <span class="tok-param">round_number</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;revision_round&quot;</span>, 0) <span class="ret">⟶</span> 0
+                            <span class="tok-kw">if</span> <span class="tok-fn">has_failures</span>(state) <span class="tok-kw">and</span> round_number &lt; settings<span class="tok-attr">.max_rounds</span>:
+                                <span class="cmt"># 有 1 条没通过，且 0 &lt; 3，成立</span>
+                                <span class="tok-kw">return</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="tok-kw">return</span> <span class="tok-str">&quot;aggregate&quot;</span>
+
+                        <span class="tok-fn">revise</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;drafts&quot;</span>: {...}, <span class="tok-str">&quot;revision_round&quot;</span>: 1,
+                                         <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>,
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;revise：第 1 轮，重做未通过的意见，涉及 1 个文件&quot;</span>]}
+                            <span class="cmt"># 这一次首次调用，展开；后续出现均为叶节点</span>
+                            <span class="tok-param">drafts</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;drafts&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">verdicts</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;verdicts&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">files</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;files&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">feedback</span> = (state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;human_feedback&quot;</span>) <span class="tok-kw">or</span> <span class="tok-str">&quot;&quot;</span>)<span class="tok-attr">.strip</span>() <span class="ret">⟶</span> <span class="tok-str">&quot;&quot;</span>
+                            <span class="tok-param">settings</span> = Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>)) <span class="ret">⟶</span> Settings
+                            <span class="tok-param">llm</span> = <span class="tok-fn">build_chat_model</span>(settings) <span class="ret">⟶</span> ChatOpenAI
+                            <span class="tok-param">round_number</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;revision_round&quot;</span>, 0) + 1 <span class="ret">⟶</span> 1
+
+                            <span class="tok-param">targets</span> = []
+                            <span class="tok-kw">for</span> path, draft <span class="tok-kw">in</span> drafts<span class="tok-attr">.items</span>():          <span class="cmt"># 三个文件逐个看</span>
+                                <span class="tok-kw">if</span> path <span class="tok-kw">not</span> <span class="tok-kw">in</span> files:                   <span class="cmt"># 都在，不成立</span>
+                                    <span class="tok-kw">continue</span>
+                                <span class="tok-kw">if</span> feedback:                            <span class="cmt"># 空串，不成立</span>
+                                    targets<span class="tok-attr">.append</span>((path, [<span class="tok-str">f&quot;人工审查反馈：{feedback}&quot;</span>]))
+                                    <span class="tok-kw">continue</span>
+                                <span class="tok-param">by_id</span> = {verdict<span class="tok-attr">.comment_id</span>: verdict
+                                         <span class="tok-kw">for</span> verdict <span class="tok-kw">in</span> verdicts<span class="tok-attr">.get</span>(path, [])}
+                                <span class="tok-param">failures</span> = [<span class="tok-str">f&quot;{comment.title}（行号 a-b）：{by_id[comment.id].reason_text()}&quot;</span>
+                                            <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> draft<span class="tok-attr">.comments</span>
+                                            <span class="tok-kw">if</span> comment<span class="tok-attr">.id</span> <span class="tok-kw">in</span> by_id <span class="tok-kw">and</span> <span class="tok-kw">not</span> by_id[comment<span class="tok-attr">.id</span>]<span class="tok-attr">.passed</span>]
+                                <span class="tok-kw">if</span> failures:                            <span class="cmt"># 只有 app/service<span class="tok-attr">.py</span> 命中</span>
+                                    targets<span class="tok-attr">.append</span>((path, failures))
+                            <span class="cmt"># <span class="rw rw-w">W:</span> targets（本次只有 app/service<span class="tok-attr">.py</span>，即<span class="tok-str">&quot;只重做有失败意见的文件&quot;</span>）</span>
+
+                            <span class="tok-fn">redo</span>(item) <span class="ret">⟶</span> (path, FileDraft)
+                                <span class="rw rw-r">R:</span> drafts、files、llm、settings、feedback、round_number
+                                path, <span class="tok-param">failures</span> = item <span class="ret">⟶</span> (<span class="tok-str">&quot;app/service.py&quot;</span>, [<span class="tok-str">&quot;可变默认参数...：引用的原文和给出的行号对不上：...&quot;</span>])
+                                <span class="tok-kw">return</span> path, <span class="tok-fn">generate_comments</span>(llm, files[path], settings,
+                                                               <span class="tok-param">previous</span>=[comment<span class="tok-attr">.model_dump</span>()
+                                                                         <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> drafts[path]<span class="tok-attr">.comments</span>],
+                                                               <span class="tok-param">failures</span>=failures, <span class="tok-param">feedback</span>=<span class="tok-str">&quot;&quot;</span>,
+                                                               <span class="tok-param">attempt</span>=1) <span class="ret">⟶</span> FileDraft
+                                    <span class="cmt"># 不展开：previous 非空，因此走 REVISE_SYSTEM 与</span>
+                                    <span class="cmt"># build_revise_prompt，后者拼入改动原文、上一轮这个文件的完整</span>
+                                    <span class="cmt"># 意见列表、未通过的原因、<span class="tok-fn">review_profile</span>(kind)</span>
+                                    <span class="cmt"># 模型返回的是该文件的完整意见列表，代码不逐条比对旧列表</span>
+
+                            <span class="tok-param">updated</span> = {}
+                            <span class="tok-param">workers</span> = <span class="tok-fn">max</span>(1, settings<span class="tok-attr">.max_concurrency</span>) <span class="ret">⟶</span> 4
+                            <span class="tok-kw">if</span> workers == 1 <span class="tok-kw">or</span> <span class="tok-fn">len</span>(targets) &lt;= 1:       <span class="cmt"># len 为 1，成立</span>
+                                <span class="tok-kw">for</span> item <span class="tok-kw">in</span> targets:
+                                    key, <span class="tok-param">draft</span> = <span class="tok-fn">redo</span>(item)
+                                    updated[key] = draft
+                            <span class="tok-kw">else</span>:
+                                <span class="tok-kw">with</span> <span class="tok-fn">ThreadPoolExecutor</span>(<span class="tok-param">max_workers</span>=workers) as pool:
+                                    <span class="tok-kw">for</span> key, draft <span class="tok-kw">in</span> <span class="tok-fn">map</span>(pool, redo, targets):
+                                        updated[key] = draft
+                            <span class="tok-param">mode</span> = <span class="tok-str">&quot;按人工反馈重做&quot;</span> <span class="tok-kw">if</span> feedback <span class="tok-kw">else</span> <span class="tok-str">&quot;重做未通过的意见&quot;</span> <span class="ret">⟶</span> <span class="tok-str">&quot;重做未通过的意见&quot;</span>
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;drafts&quot;</span>: updated, <span class="tok-str">&quot;revision_round&quot;</span>: 1,
+                                    <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>, **<span class="tok-fn">log</span>(...)}
+                            <span class="rw rw-w">W:</span> drafts[<span class="tok-str">&quot;app/service.py&quot;</span>]、revision_round、human_feedback（清空）、history
+
+                        <span class="tok-fn">verify</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;verdicts&quot;</span>: {...},
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;verify：第 2 轮校验 11 条，未通过 0 条&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上。输入是重做后的 drafts，本轮 11 条全部通过</span>
+                        <span class="tok-fn">route_after_verify</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;aggregate&quot;</span>
+                            <span class="cmt"># 叶：不展开。没有失败意见，短路，不走重试环</span>
+
+                        <span class="tok-fn">aggregate</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;report&quot;</span>: {...},
+                                            <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;aggregate：11 条意见，通过校验 11 条，待人工判断 0 条&quot;</span>]}
+                            <span class="tok-param">drafts</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;drafts&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">verdicts</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;verdicts&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">files</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;files&quot;</span>) <span class="ret">⟶</span> {3 个文件}
+                            <span class="tok-param">settings</span> = Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;settings&quot;</span>)) <span class="ret">⟶</span> Settings
+                            <span class="tok-param">file_reports</span> = []; <span class="tok-param">unresolved</span> = []
+                            <span class="tok-param">by_severity</span> = {<span class="tok-str">&quot;high&quot;</span>: 0, <span class="tok-str">&quot;medium&quot;</span>: 0, <span class="tok-str">&quot;low&quot;</span>: 0}
+                            <span class="tok-param">total</span> = 0; <span class="tok-param">verified</span> = 0
+                            <span class="tok-kw">for</span> path <span class="tok-kw">in</span> <span class="tok-fn">sorted</span>(drafts):                 <span class="cmt"># 三个文件逐个汇总</span>
+                                <span class="tok-param">draft</span> = drafts[path]; <span class="tok-param">change</span> = files<span class="tok-attr">.get</span>(path)
+                                <span class="tok-param">by_id</span> = {verdict<span class="tok-attr">.comment_id</span>: verdict
+                                         <span class="tok-kw">for</span> verdict <span class="tok-kw">in</span> verdicts<span class="tok-attr">.get</span>(path, [])}
+                                <span class="tok-param">comments</span> = []
+                                <span class="tok-kw">for</span> comment <span class="tok-kw">in</span> draft<span class="tok-attr">.comments</span>:
+                                    <span class="tok-param">verdict</span> = by_id<span class="tok-attr">.get</span>(comment<span class="tok-attr">.id</span>)
+                                    <span class="tok-param">passed</span> = <span class="tok-fn">bool</span>(verdict <span class="tok-kw">and</span> verdict<span class="tok-attr">.passed</span>)
+                                    total += 1
+                                    by_severity[comment<span class="tok-attr">.severity</span>] += 1
+                                    <span class="tok-kw">if</span> passed:
+                                        verified += 1
+                                    <span class="tok-kw">else</span>:                           <span class="cmt"># 本轮没有，不执行</span>
+                                        <span class="tok-param">issues</span> = <span class="tok-fn">list</span>(verdict<span class="tok-attr">.structural_issues</span>) <span class="tok-kw">if</span> verdict <span class="tok-kw">else</span> [<span class="tok-str">&quot;没有校验结论&quot;</span>]
+                                        <span class="tok-kw">if</span> verdict <span class="tok-kw">and</span> verdict<span class="tok-attr">.semantic_reason</span>:
+                                            issues<span class="tok-attr">.append</span>(verdict<span class="tok-attr">.semantic_reason</span>)
+                                        unresolved<span class="tok-attr">.append</span>(<span class="tok-fn">UnresolvedItem</span>(...))
+                                        <span class="cmt"># 到上限仍未通过的意见不丢弃，进报告的「未通过校验」一节</span>
+                                    comments<span class="tok-attr">.append</span>(<span class="tok-fn">CommentReport</span>(<span class="tok-param">id</span>=..., <span class="tok-param">severity</span>=..., <span class="tok-param">title</span>=...,
+                                                                  <span class="tok-param">detail</span>=..., <span class="tok-param">evidence</span>=...,
+                                                                  <span class="tok-param">verified</span>=passed))
+                                <span class="tok-fn">sort</span>(comments, <span class="tok-param">key</span>=(SEVERITY_ORDER[severity], line_start))
+                                file_reports<span class="tok-attr">.append</span>(<span class="tok-fn">FileReport</span>(<span class="tok-param">path</span>=path, <span class="tok-param">kind</span>=draft<span class="tok-attr">.kind</span>,
+                                                               <span class="tok-param">lang</span>=change<span class="tok-attr">.lang</span>, <span class="tok-param">change_type</span>=change<span class="tok-attr">.change_type</span>,
+                                                               <span class="tok-param">comments</span>=comments))
+                            <span class="tok-param">report</span> = <span class="tok-fn">Report</span>(<span class="tok-param">model</span>=<span class="tok-str">&quot;deepseek-chat&quot;</span>, <span class="tok-param">source</span>=<span class="tok-str">&quot;patch samples\\demo.diff&quot;</span>,
+                                            <span class="tok-param">stats</span>=<span class="tok-fn">ReportStats</span>(<span class="tok-param">files_reviewed</span>=3, <span class="tok-param">comments_total</span>=11,
+                                                              <span class="tok-param">comments_verified</span>=11,
+                                                              <span class="tok-param">by_severity</span>=by_severity, <span class="tok-param">rounds</span>=1),
+                                            <span class="tok-param">files</span>=file_reports, <span class="tok-param">unresolved</span>=[])
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;report&quot;</span>: report<span class="tok-attr">.model_dump</span>(), **<span class="tok-fn">log</span>(...)}
+                            <span class="rw rw-w">W:</span> report、history
+
+                        <span class="tok-fn">human_gate</span>(state) <span class="ret">⟶</span> 未返回：在此中断
+                            <span class="tok-param">payload</span> = {<span class="tok-str">&quot;question&quot;</span>: <span class="tok-str">&quot;报告已生成，选择下一步&quot;</span>,
+                                       <span class="tok-str">&quot;choices&quot;</span>: [<span class="tok-str">&quot;approve&quot;</span>, <span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;abort&quot;</span>],
+                                       <span class="tok-str">&quot;report&quot;</span>: state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;report&quot;</span>) <span class="tok-kw">or</span> {}}
+                            <span class="tok-param">answer</span> = <span class="tok-fn">interrupt</span>(payload) <span class="ret">⟶</span> 挂起
+                                <span class="cmt"># 图在此原地暂停，状态写入检查点，节点未完成、不产生状态更新</span>
+                                <span class="cmt"># 恢复时本节点从头重跑，所以 interrupt 之前不能有副作用</span>
+                    <span class="cmt"># stream 结束。get_state 显示 next 停在 (<span class="tok-str">&quot;human_gate&quot;</span>,)</span>
+
+                    <span class="tok-param">snapshot</span> = <span class="tok-fn">get_state</span>(compiled, config) <span class="ret">⟶</span> StateSnapshot
+                    <span class="tok-param">interrupt_value</span> = <span class="tok-fn">_first_interrupt</span>(snapshot) <span class="ret">⟶</span> {<span class="tok-str">&quot;question&quot;</span>: ..., <span class="tok-str">&quot;report&quot;</span>: {...}}
+                        <span class="tok-kw">for</span> task <span class="tok-kw">in</span> <span class="tok-fn">getattr</span>(snapshot, <span class="tok-str">&quot;tasks&quot;</span>, ()) <span class="tok-kw">or</span> ():
+                            <span class="tok-kw">for</span> item <span class="tok-kw">in</span> <span class="tok-fn">getattr</span>(task, <span class="tok-str">&quot;interrupts&quot;</span>, ()) <span class="tok-kw">or</span> ():
+                                <span class="tok-kw">return</span> <span class="tok-fn">getattr</span>(item, <span class="tok-str">&quot;value&quot;</span>, <span class="tok-kw">None</span>)
+                        <span class="tok-kw">return</span> <span class="tok-kw">None</span>
+                    <span class="tok-kw">if</span> interrupt_value <span class="tok-kw">is</span> <span class="tok-kw">None</span>:                 <span class="cmt"># 不成立</span>
+                        <span class="tok-kw">return</span> snapshot<span class="tok-attr">.values</span>
+
+                    <span class="tok-param">report_payload</span> = (interrupt_value <span class="tok-kw">or</span> {})<span class="tok-attr">.get</span>(<span class="tok-str">&quot;report&quot;</span>) <span class="tok-kw">or</span> snapshot<span class="tok-attr">.values</span><span class="tok-attr">.get</span>(<span class="tok-str">&quot;report&quot;</span>)
+                    <span class="tok-fn">_print_report</span>(report_payload)
+                        <span class="tok-kw">if</span> <span class="tok-kw">not</span> report_payload:                  <span class="cmt"># 不成立</span>
+                            <span class="tok-fn">print</span>(<span class="tok-str">&quot;没有拿到报告内容&quot;</span>)                                    <span class="tag log">[印]</span>
+                            <span class="tok-kw">return</span> <span class="tok-kw">None</span>
+                        <span class="tok-param">report</span> = <span class="tok-fn">model_validate</span>(Report, report_payload) <span class="ret">⟶</span> Report
+                        <span class="tok-fn">print</span>(<span class="tok-fn">Rule</span>(<span class="tok-str">&quot;审查报告&quot;</span>))                                          <span class="tag log">[印]</span>
+                        <span class="tok-fn">print</span>(<span class="tok-fn">Markdown</span>(report<span class="tok-attr">.to_markdown</span>()))                            <span class="tag log">[印]</span>
+                        <span class="tok-fn">print</span>(<span class="tok-fn">Rule</span>())                                                    <span class="tag log">[印]</span>
+
+                    <span class="tok-kw">if</span> pause_at_review:                         <span class="cmt"># <span class="tok-kw">False</span>，不成立</span>
+                        <span class="tok-fn">print</span>(<span class="tok-str">&quot;已停在人工确认，进程直接退出，状态留在检查点里&quot;</span>)                <span class="tag log">[印]</span>
+                        <span class="tok-kw">return</span> snapshot<span class="tok-attr">.values</span>
+
+                    <span class="tok-kw">if</span> reject_first <span class="tok-kw">and</span> <span class="tok-kw">not</span> rejected:           <span class="cmt"># 成立</span>
+                        <span class="tok-param">rejected</span> = <span class="tok-kw">True</span>
+                        <span class="tok-param">decision</span> = {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;revise&quot;</span>,
+                                    <span class="tok-str">&quot;feedback&quot;</span>: <span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span>}
+                        <span class="tok-fn">print</span>(<span class="tok-str">f&quot;按 --reject-first 打回重做：{reject_first}&quot;</span>)             <span class="tag log">[印]</span>
+                    <span class="tok-kw">elif</span> auto_approve:
+                        <span class="tok-param">decision</span> = {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;approve&quot;</span>}
+                        <span class="tok-fn">print</span>(<span class="tok-str">&quot;按 --auto-approve 通过&quot;</span>)                                 <span class="tag log">[印]</span>
+                    <span class="tok-kw">else</span>:
+                        <span class="tok-param">decision</span> = <span class="tok-fn">_interactive_decision</span>()
+
+                    <span class="tok-param">payload</span> = <span class="tok-fn">Command</span>(<span class="tok-param">resume</span>=decision)          <span class="cmt"># 带着人的选择回到 human_gate</span>
+
+                <span class="tok-kw">while</span> <span class="tok-kw">True</span>:                                    <span class="cmt"># ── 第 2 轮 ──</span>
+                    <span class="tok-kw">for</span> chunk <span class="tok-kw">in</span> <span class="tok-fn">stream</span>(payload, config, <span class="tok-param">stream_mode</span>=<span class="tok-str">&quot;updates&quot;</span>):
+                        <span class="tok-fn">human_gate</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;少提一条：...&quot;</span>,
+                                             <span class="tok-str">&quot;revision_round&quot;</span>: 0,
+                                             <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;human_gate：选择 revise，反馈：少提一条：...&quot;</span>]}
+                            <span class="cmt"># 恢复：本节点从头重跑，interrupt 直接返回人的选择</span>
+                            <span class="tok-param">payload</span> = {<span class="tok-str">&quot;question&quot;</span>: <span class="tok-str">&quot;报告已生成，选择下一步&quot;</span>,
+                                       <span class="tok-str">&quot;choices&quot;</span>: [<span class="tok-str">&quot;approve&quot;</span>, <span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;abort&quot;</span>],
+                                       <span class="tok-str">&quot;report&quot;</span>: state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;report&quot;</span>) <span class="tok-kw">or</span> {}}
+                            <span class="tok-param">answer</span> = <span class="tok-fn">interrupt</span>(payload) <span class="ret">⟶</span> {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;revise&quot;</span>,
+                                                           <span class="tok-str">&quot;feedback&quot;</span>: <span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span>}
+                            <span class="tok-kw">if</span> <span class="tok-fn">isinstance</span>(answer, dict):                    <span class="cmt"># 成立</span>
+                                <span class="tok-param">choice</span> = <span class="tok-str">&quot;revise&quot;</span>
+                                <span class="tok-param">feedback</span> = <span class="tok-str">&quot;少提一条：缺少对 records 为空时的处理，请补上&quot;</span>
+                            <span class="tok-kw">else</span>:
+                                <span class="tok-param">choice</span> = <span class="tok-fn">str</span>(answer)<span class="tok-attr">.strip</span>()<span class="tok-attr">.lower</span>()
+                                <span class="tok-param">feedback</span> = <span class="tok-str">&quot;&quot;</span>
+                            <span class="tok-kw">if</span> choice <span class="tok-kw">not</span> <span class="tok-kw">in</span> CHOICES:                       <span class="cmt"># 不成立</span>
+                                choice, <span class="tok-param">feedback</span> = <span class="tok-str">&quot;abort&quot;</span>, <span class="tok-str">f&quot;收到无法识别的选择 {choice!r}，按放弃处理&quot;</span>
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;revise&quot;</span>, <span class="tok-str">&quot;human_feedback&quot;</span>: feedback,
+                                    <span class="tok-str">&quot;revision_round&quot;</span>: 0, **<span class="tok-fn">log</span>(...)}
+                            <span class="rw rw-w">W:</span> decision、human_feedback、revision_round（归零，打回后重新获得完整重做轮次）
+
+                        <span class="tok-fn">route_after_human_gate</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="tok-param">decision</span> = state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;decision&quot;</span>, <span class="tok-str">&quot;abort&quot;</span>) <span class="ret">⟶</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="tok-kw">if</span> decision == <span class="tok-str">&quot;approve&quot;</span>:                       <span class="cmt"># 不成立</span>
+                                <span class="tok-kw">return</span> <span class="tok-str">&quot;finalize&quot;</span>
+                            <span class="tok-kw">if</span> decision == <span class="tok-str">&quot;revise&quot;</span>:                        <span class="cmt"># 成立</span>
+                                <span class="tok-kw">return</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="tok-kw">return</span> END
+
+                        <span class="tok-fn">revise</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;drafts&quot;</span>: {...}, <span class="tok-str">&quot;revision_round&quot;</span>: 1, <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>,
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;revise：第 1 轮，按人工反馈重做，涉及 3 个文件&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上。feedback 非空，走 <span class="tok-kw">if</span> feedback 分支，</span>
+                            <span class="cmt"># 三个文件全部进 targets，整批重做</span>
+
+                        <span class="tok-fn">verify</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;verdicts&quot;</span>: {...},
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;verify：第 2 轮校验 14 条，未通过 2 条&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上</span>
+                        <span class="tok-fn">route_after_verify</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;revise&quot;</span>
+                            <span class="cmt"># 叶：不展开。有 2 条没通过，且轮次 1 &lt; 3，回到重做</span>
+
+                        <span class="tok-fn">revise</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;drafts&quot;</span>: {...}, <span class="tok-str">&quot;revision_round&quot;</span>: 2, <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>,
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;revise：第 2 轮，重做未通过的意见，涉及 2 个文件&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上。走 feedback 为空的分支</span>
+                        <span class="tok-fn">verify</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;verdicts&quot;</span>: {...},
+                                         <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;verify：第 3 轮校验 12 条，未通过 0 条&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上</span>
+                        <span class="tok-fn">route_after_verify</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;aggregate&quot;</span>
+                            <span class="cmt"># 叶：不展开。没有失败意见</span>
+                        <span class="tok-fn">aggregate</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;report&quot;</span>: {...},
+                                            <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;aggregate：12 条意见，通过校验 12 条，待人工判断 0 条&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上</span>
+                        <span class="tok-fn">human_gate</span>(state) <span class="ret">⟶</span> 未返回：再次中断
+                            <span class="cmt"># 第二次暂停，流程与第 1 轮相同</span>
+                    <span class="tok-param">snapshot</span> = <span class="tok-fn">get_state</span>(compiled, config) <span class="ret">⟶</span> StateSnapshot
+                    <span class="tok-param">interrupt_value</span> = <span class="tok-fn">_first_interrupt</span>(snapshot) <span class="ret">⟶</span> {...}
+                    <span class="tok-param">report_payload</span> = ...
+                    <span class="tok-fn">_print_report</span>(report_payload)                                       <span class="tag log">[印]</span>
+                    <span class="tok-kw">if</span> pause_at_review:                        <span class="cmt"># <span class="tok-kw">False</span></span>
+                        ...
+                    <span class="tok-kw">if</span> reject_first <span class="tok-kw">and</span> <span class="tok-kw">not</span> rejected:          <span class="cmt"># rejected 已是 <span class="tok-kw">True</span>，不成立</span>
+                        ...
+                    <span class="tok-kw">elif</span> auto_approve:                         <span class="cmt"># 成立</span>
+                        <span class="tok-param">decision</span> = {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;approve&quot;</span>}
+                        <span class="tok-fn">print</span>(<span class="tok-str">&quot;按 --auto-approve 通过&quot;</span>)                                 <span class="tag log">[印]</span>
+                    <span class="tok-param">payload</span> = <span class="tok-fn">Command</span>(<span class="tok-param">resume</span>=decision)
+
+                <span class="tok-kw">while</span> <span class="tok-kw">True</span>:                                    <span class="cmt"># ── 第 3 轮 ──</span>
+                    <span class="tok-kw">for</span> chunk <span class="tok-kw">in</span> <span class="tok-fn">stream</span>(payload, config, <span class="tok-param">stream_mode</span>=<span class="tok-str">&quot;updates&quot;</span>):
+                        <span class="tok-fn">human_gate</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;approve&quot;</span>, <span class="tok-str">&quot;human_feedback&quot;</span>: <span class="tok-str">&quot;&quot;</span>,
+                                             <span class="tok-str">&quot;revision_round&quot;</span>: 0,
+                                             <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;human_gate：选择 approve&quot;</span>]}
+                            <span class="cmt"># 叶：不展开，同上，answer 为 {<span class="tok-str">&quot;decision&quot;</span>: <span class="tok-str">&quot;approve&quot;</span>}</span>
+                        <span class="tok-fn">route_after_human_gate</span>(state) <span class="ret">⟶</span> <span class="tok-str">&quot;finalize&quot;</span>
+                            <span class="cmt"># 叶：不展开，decision 为 approve</span>
+                        <span class="tok-fn">finalize</span>(state) <span class="ret">⟶</span> {<span class="tok-str">&quot;output_paths&quot;</span>: [<span class="tok-str">&quot;out_reject\\report.json&quot;</span>,
+                                                           <span class="tok-str">&quot;out_reject\\report.md&quot;</span>],
+                                           <span class="tok-str">&quot;history&quot;</span>: [<span class="tok-str">&quot;finalize：写入 out_reject\\report.json 和 out_reject\\report.md&quot;</span>]}
+                            <span class="tok-param">report</span> = <span class="tok-fn">model_validate</span>(Report, state[<span class="tok-str">&quot;report&quot;</span>] <span class="tok-kw">or</span> {}) <span class="ret">⟶</span> Report
+                            <span class="tok-param">output_dir</span> = <span class="tok-fn">Path</span>(state<span class="tok-attr">.get</span>(<span class="tok-str">&quot;output_dir&quot;</span>) <span class="tok-kw">or</span> <span class="tok-str">&quot;out&quot;</span>) <span class="ret">⟶</span> <span class="tok-fn">WindowsPath</span>(<span class="tok-str">&quot;out_reject&quot;</span>)
+                            <span class="tok-fn">mkdir</span>(output_dir, <span class="tok-param">parents</span>=<span class="tok-kw">True</span>, <span class="tok-param">exist_ok</span>=<span class="tok-kw">True</span>) <span class="ret">⟶</span> <span class="tok-kw">None</span>       <span class="tag file">[文]</span>
+                            <span class="tok-param">json_path</span> = output_dir / <span class="tok-str">&quot;report.json&quot;</span>
+                            <span class="tok-param">markdown_path</span> = output_dir / <span class="tok-str">&quot;report.md&quot;</span>
+                            <span class="tok-fn">write_text</span>(json_path, report<span class="tok-attr">.model_dump_json</span>(<span class="tok-param">indent</span>=2),
+                                       <span class="tok-param">encoding</span>=<span class="tok-str">&quot;utf-8&quot;</span>)                               <span class="tag file">[文]</span>
+                            <span class="tok-fn">write_text</span>(markdown_path, report<span class="tok-attr">.to_markdown</span>(),
+                                       <span class="tok-param">encoding</span>=<span class="tok-str">&quot;utf-8&quot;</span>)                               <span class="tag file">[文]</span>
+                            <span class="tok-kw">return</span> {<span class="tok-str">&quot;output_paths&quot;</span>: [<span class="tok-fn">str</span>(json_path), <span class="tok-fn">str</span>(markdown_path)], **<span class="tok-fn">log</span>(...)}
+                            <span class="rw rw-w">W:</span> output_paths、history
+                    <span class="tok-param">snapshot</span> = <span class="tok-fn">get_state</span>(compiled, config) <span class="ret">⟶</span> StateSnapshot
+                    <span class="tok-param">interrupt_value</span> = <span class="tok-fn">_first_interrupt</span>(snapshot) <span class="ret">⟶</span> <span class="tok-kw">None</span>
+                    <span class="tok-kw">if</span> interrupt_value <span class="tok-kw">is</span> <span class="tok-kw">None</span>:                <span class="cmt"># 成立</span>
+                        <span class="tok-kw">return</span> snapshot<span class="tok-attr">.values</span>                 <span class="cmt"># 图跑完了</span>
+
+            <span class="tok-param">decision</span> = values<span class="tok-attr">.get</span>(<span class="tok-str">&quot;decision&quot;</span>) <span class="ret">⟶</span> <span class="tok-str">&quot;approve&quot;</span>
+            <span class="tok-fn">print</span>(<span class="tok-fn">Rule</span>(<span class="tok-str">&quot;结果&quot;</span>))                                                        <span class="tag log">[印]</span>
+            <span class="tok-kw">if</span> decision == <span class="tok-str">&quot;approve&quot;</span>:                      <span class="cmt"># 成立</span>
+                <span class="tok-kw">for</span> path <span class="tok-kw">in</span> values<span class="tok-attr">.get</span>(<span class="tok-str">&quot;output_paths&quot;</span>, []):
+                    <span class="tok-fn">print</span>(<span class="tok-str">f&quot;已输出 {path}&quot;</span>)                                             <span class="tag log">[印]</span>
+                    <span class="cmt"># 依次打印 out_reject\report<span class="tok-attr">.json</span>、out_reject\report<span class="tok-attr">.md</span></span>
+            <span class="tok-kw">else</span>:
+                <span class="tok-fn">print</span>(<span class="tok-str">&quot;已放弃，没有输出报告&quot;</span>)
+            <span class="tok-kw">return</span> <span class="tok-kw">None</span>
 </code></pre>
-<h2 id="一-入口">一 入口</h2>
-<pre><code>run(from_git, patch, diff_text, out, kind, db, thread, paths,
-    model, base_url, max_concurrency, max_rounds,
-    auto_approve, pause_at_review, reject_first)
-    source = _resolve_source(from_git, patch, diff_text) <span class="ret">⟶</span> dict
-        given = [value <span class="kw">for</span> value in (from_git, patch, diff_text) <span class="kw">if</span> value]
-        <span class="kw">if</span> len(given) != 1:
-            <span class="kw">raise</span> BadParameter(&quot;改动来源三选一：--from-git 或 --patch 或 --diff-text&quot;)
-        <span class="kw">if</span> from_git:
-            <span class="kw">return</span> {&quot;type&quot;: &quot;git&quot;, &quot;range&quot;: from_git}
-        <span class="kw">if</span> patch:
-            <span class="kw">return</span> {&quot;type&quot;: &quot;patch&quot;, &quot;path&quot;: patch}
-        <span class="kw">return</span> {&quot;type&quot;: &quot;text&quot;, &quot;text&quot;: diff_text or &quot;&quot;}
-
-    path_filter = parse_paths(paths) <span class="ret">⟶</span> list[str]
-        <span class="kw">if</span> not raw:
-            <span class="kw">return</span> []
-        <span class="kw">return</span> [part.strip() <span class="kw">for</span> part in raw.split(&quot;,&quot;) <span class="kw">if</span> part.strip()]
-
-    settings = load_settings(model=, base_url=, max_concurrency=, max_rounds=) <span class="ret">⟶</span> Settings
-    <span class="c"># 见第二节</span>
-
-    thread_id = thread or uuid4().hex[:12]
-    <span class="c"># 未给 --thread 时随机生成会话号，供检查点区分不同运行</span>
-
-    config = {&quot;configurable&quot;: {&quot;thread_id&quot;: thread_id},
-              &quot;max_concurrency&quot;: settings.max_concurrency}
-
-    print(f&quot;会话 {thread_id}｜模型 {settings.model}｜检查点 {kind}｜并发 {settings.max_concurrency}&quot;)   <span class="tag log">[印]</span>
-    <span class="kw">if</span> path_filter:
-        print(f&quot;只审查路径里包含 {path_filter} 的文件&quot;)                                        <span class="tag log">[印]</span>
-
-    compiled = build_graph(make_checkpointer(kind, db)) <span class="ret">⟶</span> CompiledStateGraph
-    <span class="c"># 见第三节</span>
-
-    initial = {
-        &quot;diff_source&quot;: source,          <span class="c"># 改动从哪来</span>
-        &quot;output_dir&quot;: out,              <span class="c"># 报告写到哪</span>
-        &quot;path_filter&quot;: path_filter,     <span class="c"># 只审哪些文件</span>
-        &quot;settings&quot;: settings.for_state(),   <span class="c"># 进图的那份不带密钥</span>
-        &quot;drafts&quot;: {}, &quot;verdicts&quot;: {},
-        &quot;revision_round&quot;: 0, &quot;human_feedback&quot;: &quot;&quot;, &quot;history&quot;: [],
-    }
-    <span class="c"># <span class="rw-w">W:</span> 这是整张图的初始状态，后续所有节点都在它之上累积</span>
-
-    <span class="kw">if</span> pause_at_review:
-        print(f&quot;恢复命令：review resume --thread {thread_id} --db {db} --auto-approve&quot;)        <span class="tag log">[印]</span>
-
-    values = _drive(compiled, initial, config, auto_approve, reject_first, pause_at_review) <span class="ret">⟶</span> dict
-    decision = values.get(&quot;decision&quot;) or &quot;abort&quot;
-    print(Rule(&quot;结果&quot;))                                                                       <span class="tag log">[印]</span>
-    <span class="kw">if</span> decision == &quot;approve&quot;:
-        <span class="kw">for</span> path in values.get(&quot;output_paths&quot;, []):
-            print(f&quot;已输出 {path}&quot;)                                                            <span class="tag log">[印]</span>
-    <span class="kw">else</span>:
-        print(&quot;已放弃，没有输出报告&quot;)                                                           <span class="tag log">[印]</span>
-    <span class="kw">return</span> <span class="kw">None</span>
-</code></pre>
-<h2 id="二-配置">二 配置</h2>
-<pre><code>load_settings(env_file=<span class="kw">None</span>, **overrides) <span class="ret">⟶</span> Settings
-    load_dotenv(env_file, override=<span class="kw">False</span>)                      <span class="c"># 读 .env 注入环境变量   <span class="tag file">[文]</span></span>
-    <span class="rw-r">R:</span> 环境变量、.env 文件
-    resolved = {
-        &quot;model&quot;: getenv(&quot;REVIEW_MODEL&quot;, DEFAULT_MODEL),
-        &quot;base_url&quot;: getenv(&quot;REVIEW_BASE_URL&quot;, DEFAULT_BASE_URL),
-        &quot;api_key&quot;: resolve_api_key(),
-        &quot;temperature&quot;: float(getenv(&quot;REVIEW_TEMPERATURE&quot;, &quot;0&quot;)),
-        &quot;max_concurrency&quot;: int(getenv(&quot;REVIEW_MAX_CONCURRENCY&quot;, &quot;4&quot;)),
-        &quot;max_rounds&quot;: int(getenv(&quot;REVIEW_MAX_ROUNDS&quot;, &quot;3&quot;)),
-    }
-    <span class="kw">for</span> key, value in overrides.items():
-        <span class="kw">if</span> value is not <span class="kw">None</span>:
-            resolved[key] = value                              <span class="c"># 命令行参数覆盖环境变量</span>
-    <span class="kw">return</span> Settings(**resolved)
-
-resolve_api_key() <span class="ret">⟶</span> str
-    <span class="rw-r">R:</span> 环境变量
-    <span class="kw">return</span> getenv(&quot;REVIEW_API_KEY&quot;) or getenv(&quot;DEEPSEEK_API_KEY&quot;) \
-           or getenv(&quot;OPENAI_API_KEY&quot;) or &quot;not-needed&quot;
-
-Settings.for_state() <span class="ret">⟶</span> dict
-    data = model_dump()
-    data.pop(&quot;api_key&quot;, <span class="kw">None</span>)                                  <span class="c"># 密钥不进状态，检查点会落盘</span>
-    <span class="kw">return</span> data
-
-Settings.from_state(data) <span class="ret">⟶</span> Settings                            <span class="c"># 每个要模型的节点都先调它</span>
-    settings = cls(**(data or {}))
-    <span class="kw">if</span> not settings.api_key:
-        settings.api_key = resolve_api_key()                   <span class="c"># 从环境变量补回密钥</span>
-    <span class="kw">return</span> settings
-
-Settings.__del__ 无；Settings 是 pydantic 模型，无副作用
-</code></pre>
-<h2 id="三-图的组装">三 图的组装</h2>
-<pre><code>build_graph(checkpointer=<span class="kw">None</span>) <span class="ret">⟶</span> CompiledStateGraph
-    builder = StateGraph(ReviewState)
-    builder.add_node(&quot;ingest&quot;, ingest) ... add_node(&quot;finalize&quot;, finalize)   <span class="c"># 注册九个节点，共九行</span>
-    builder.add_edge(START, &quot;ingest&quot;)  →  ingest → parse_diff → classify    <span class="c"># 三段普通连线</span>
-    builder.add_conditional_edges(&quot;classify&quot;, fan_out_files, [&quot;review_file&quot;, &quot;aggregate&quot;])
-    builder.add_edge(&quot;review_file&quot;, &quot;verify&quot;)                  <span class="c"># 全部并发分支跑完才汇合</span>
-    builder.add_conditional_edges(&quot;verify&quot;, route_after_verify, [&quot;revise&quot;, &quot;aggregate&quot;])
-    builder.add_edge(&quot;revise&quot;, &quot;verify&quot;)                       <span class="c"># 重试环</span>
-    builder.add_edge(&quot;aggregate&quot;, &quot;human_gate&quot;)
-    builder.add_conditional_edges(&quot;human_gate&quot;, route_after_human_gate,
-                                  [&quot;finalize&quot;, &quot;revise&quot;, END])
-    builder.add_edge(&quot;finalize&quot;, END)
-    <span class="kw">return</span> compile(checkpointer=checkpointer or make_checkpointer(&quot;memory&quot;)) <span class="ret">⟶</span> CompiledStateGraph
-
-make_checkpointer(kind=&quot;memory&quot;, path=&quot;checkpoints.db&quot;) <span class="ret">⟶</span> BaseCheckpointSaver
-    <span class="kw">if</span> kind == &quot;memory&quot;:
-        <span class="kw">return</span> InMemorySaver(serde=make_serde())
-    <span class="kw">if</span> kind == &quot;sqlite&quot;:
-        connection = connect(path, check_same_thread=<span class="kw">False</span>) <span class="ret">⟶</span> sqlite3.Connection      <span class="tag db">[存]</span>
-        <span class="kw">return</span> SqliteSaver(connection, serde=make_serde())
-    <span class="kw">raise</span> ValueError(f&quot;不认识的检查点类型：{kind}&quot;)
-
-make_serde() <span class="ret">⟶</span> JsonPlusSerializer
-    <span class="c"># 状态里的自定义类型要在序列化器里显式放行，否则读检查点会告警</span>
-    <span class="kw">return</span> JsonPlusSerializer(allowed_msgpack_modules=[...])
-
-log(message) <span class="ret">⟶</span> {&quot;history&quot;: [message]}
-    <span class="c"># 节点返回它来追加一条过程记录；history 的合并规则是追加</span>
-</code></pre>
-<h2 id="四-驱动循环">四 驱动循环</h2>
-<pre><code>_drive(compiled, payload, config, auto_approve, reject_first, pause_at_review=<span class="kw">False</span>) <span class="ret">⟶</span> dict  <span class="tag net">[网]</span><span class="tag log">[印]</span><span class="tag proc">[进]</span><span class="tag file">[文]</span><span class="tag db">[存]</span>
-    rejected = <span class="kw">False</span>
-    <span class="kw">while</span> <span class="kw">True</span>:
-        <span class="c"># payload 首轮是初始状态；之后每次是 Command(resume=decision)</span>
-        <span class="kw">for</span> chunk in stream(payload, config, stream_mode=&quot;updates&quot;) <span class="ret">⟶</span> 生成器                <span class="tag net">[网]</span><span class="tag file">[文]</span><span class="tag db">[存]</span>
-            <span class="kw">for</span> node, update in chunk.items():
-                <span class="kw">if</span> node == &quot;__interrupt__&quot; or not isinstance(update, dict):
-                    <span class="kw">continue</span>
-                <span class="kw">for</span> line in update.get(&quot;history&quot;) or []:
-                    print(f&quot;  · {line}&quot;)                                                    <span class="tag log">[印]</span>
-            <span class="c"># 每次 stream 返回一个节点的更新；history 在此被打印</span>
-
-        snapshot = get_state(config) <span class="ret">⟶</span> StateSnapshot
-        interrupt_value = _first_interrupt(snapshot) <span class="ret">⟶</span> 中断载荷 | <span class="kw">None</span>
-            <span class="kw">for</span> task in getattr(snapshot, &quot;tasks&quot;, ()) or ():
-                <span class="kw">for</span> item in getattr(task, &quot;interrupts&quot;, ()) or ():
-                    <span class="kw">return</span> getattr(item, &quot;value&quot;, <span class="kw">None</span>)
-            <span class="kw">return</span> <span class="kw">None</span>
-
-        <span class="kw">if</span> interrupt_value is <span class="kw">None</span>:
-            <span class="kw">return</span> snapshot.values                    <span class="c"># 图跑完了</span>
-
-        report_payload = (interrupt_value or {}).get(&quot;report&quot;) or snapshot.values.get(&quot;report&quot;)
-        _print_report(report_payload)
-            <span class="kw">if</span> not report_payload:
-                print(&quot;没有拿到报告内容&quot;)                                                   <span class="tag log">[印]</span>
-                <span class="kw">return</span> <span class="kw">None</span>
-            report = Report.model_validate(report_payload)
-            print(Rule(&quot;审查报告&quot;))                                                          <span class="tag log">[印]</span>
-            print(Markdown(report.to_markdown()))                                            <span class="tag log">[印]</span>
-            print(Rule())                                                                    <span class="tag log">[印]</span>
-
-        <span class="kw">if</span> pause_at_review:
-            print(&quot;已停在人工确认，进程直接退出，状态留在检查点里&quot;)                              <span class="tag log">[印]</span>
-            <span class="kw">return</span> snapshot.values              <span class="c"># 演示断点恢复：不恢复图，直接返回</span>
-
-        <span class="kw">if</span> reject_first and not rejected:
-            rejected = <span class="kw">True</span>
-            decision = {&quot;decision&quot;: &quot;revise&quot;, &quot;feedback&quot;: reject_first}
-            print(f&quot;按 --reject-first 打回重做：{reject_first}&quot;)                             <span class="tag log">[印]</span>
-        <span class="kw">elif</span> auto_approve:
-            decision = {&quot;decision&quot;: &quot;approve&quot;}
-            print(&quot;按 --auto-approve 通过&quot;)                                                  <span class="tag log">[印]</span>
-        <span class="kw">else</span>:
-            decision = _interactive_decision() <span class="ret">⟶</span> dict
-                print(&quot;  a 通过并输出    r 打回重做    x 放弃&quot;)                               <span class="tag log">[印]</span>
-                raw = prompt(&quot;选择&quot;, default=&quot;a&quot;).strip().lower()
-                <span class="kw">if</span> raw.startswith(&quot;a&quot;):
-                    <span class="kw">return</span> {&quot;decision&quot;: &quot;approve&quot;}
-                <span class="kw">if</span> raw.startswith(&quot;r&quot;):
-                    feedback = prompt(&quot;打回意见&quot;).strip()
-                    <span class="kw">return</span> {&quot;decision&quot;: &quot;revise&quot;, &quot;feedback&quot;: feedback}
-                <span class="kw">return</span> {&quot;decision&quot;: &quot;abort&quot;}
-
-        payload = Command(resume=decision)          <span class="c"># 回到被中断的 human_gate</span>
-        <span class="c"># 循环继续；打回时图会再次跑到 human_gate，于是这里再问一次</span>
-</code></pre>
-<h2 id="五-读入">五 读入</h2>
-<pre><code>ingest(state) <span class="ret">⟶</span> {&quot;diff_text&quot;, &quot;source&quot;, &quot;history&quot;}                                     <span class="tag proc">[进]</span><span class="tag file">[文]</span>
-    source = state.get(&quot;diff_source&quot;) or {}
-    kind = source.get(&quot;type&quot;, &quot;git&quot;)
-
-    <span class="kw">if</span> kind == &quot;git&quot;:
-        rev_range = source.get(&quot;range&quot;) or &quot;HEAD~1&quot;
-        text = git_diff(rev_range) <span class="ret">⟶</span> str
-            command = [&quot;git&quot;, &quot;diff&quot;, &quot;--no-color&quot;, &quot;--unified=3&quot;, rev_range]
-            proc = run(command, capture_output=<span class="kw">True</span>, text=<span class="kw">True</span>, encoding=&quot;utf-8&quot;,
-                       errors=&quot;replace&quot;) <span class="ret">⟶</span> CompletedProcess          <span class="c"># subprocess.run   <span class="tag proc">[进]</span><span class="tag file">[文]</span></span>
-            <span class="rw-r">R:</span> 仓库工作区与提交内容
-            <span class="kw">if</span> proc.returncode != 0:
-                <span class="kw">raise</span> RuntimeError(f&quot;git diff 失败：{' '.join(command)}\n{proc.stderr.strip()}&quot;)
-            <span class="kw">return</span> proc.stdout
-        label = f&quot;git {rev_range}&quot;
-    <span class="kw">elif</span> kind == &quot;patch&quot;:
-        path = Path(source.get(&quot;path&quot;, &quot;&quot;))
-        <span class="kw">if</span> not path.is_file():
-            <span class="kw">raise</span> FileNotFoundError(f&quot;找不到改动文件：{path}&quot;)
-        text = read_text(path, encoding=&quot;utf-8&quot;, errors=&quot;replace&quot;) <span class="ret">⟶</span> str                      <span class="tag file">[文]</span>
-        label = f&quot;patch {path}&quot;
-    <span class="kw">elif</span> kind == &quot;text&quot;:
-        text = source.get(&quot;text&quot;, &quot;&quot;)
-        label = &quot;内联改动&quot;
-    <span class="kw">else</span>:
-        <span class="kw">raise</span> ValueError(f&quot;不认识的改动来源：{kind}&quot;)
-
-    <span class="kw">if</span> not text.strip():
-        <span class="kw">raise</span> ValueError(f&quot;{label} 里没有任何改动&quot;)
-
-    <span class="kw">return</span> {&quot;diff_text&quot;: text, &quot;source&quot;: label,
-            **log(f&quot;ingest：读入 {label}，{len(text.splitlines())} 行 diff&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> diff_text、source、history 写回共享状态</span>
-</code></pre>
-<h2 id="六-解析与扇出">六 解析与扇出</h2>
-<pre><code>parse_diff(state) <span class="ret">⟶</span> {&quot;files&quot;, &quot;history&quot;}
-    changes = parse_unified_diff(state.get(&quot;diff_text&quot;, &quot;&quot;)) <span class="ret">⟶</span> list[FileChange]
-        <span class="c"># 不展开：见下方摘要</span>
-        <span class="c"># 逐行扫描 diff 文本，遇到 &quot;diff --git&quot; 开新文件、遇到 &quot;@@&quot; 开新 hunk，</span>
-        <span class="c"># 其余行按首字符 +、-、空格 归入新增行、删除行或上下文行。</span>
-        <span class="c"># 新增行记录为 {新文件行号: 行内容}，这是后续校验行号的唯一依据。</span>
-        <span class="c"># 用内部闭包 flush() 在文件切换时收尾；flush 的 <span class="rw-w">W:</span> files、current</span>
-        <span class="c"># 无副作用；返回 FileChange 列表</span>
-    mapping = {change.path: change <span class="kw">for</span> change in changes <span class="kw">if</span> change.path}
-    added = sum(len(change.added_lines) <span class="kw">for</span> change in mapping.values())
-    <span class="kw">return</span> {&quot;files&quot;: mapping, **log(f&quot;parse_diff：{len(mapping)} 个文件，{added} 行新增&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> files、history</span>
-
-fan_out_files(state) <span class="ret">⟶</span> list[Send] | &quot;aggregate&quot;                    <span class="c"># 条件连线的判定函数</span>
-    files = state.get(&quot;files&quot;) or {}
-    <span class="kw">if</span> not files:
-        <span class="kw">return</span> &quot;aggregate&quot;
-    payload_settings = state.get(&quot;settings&quot;) or {}
-    <span class="kw">return</span> [
-        Send(&quot;review_file&quot;, {&quot;file&quot;: change.model_dump(), &quot;settings&quot;: payload_settings})
-        <span class="kw">for</span> change in files.values()
-        <span class="kw">if</span> not change.is_binary
-    ] or &quot;aggregate&quot;
-    <span class="c"># 每一路只带一个文件和配置；被分派的节点拿不到共享状态里的其他字段</span>
-
-summarize(changes) <span class="ret">⟶</span> str                                           <span class="c"># 叶：命令行摘要</span>
-    <span class="kw">return</span> f&quot;{len(files)} 个文件，{total_added} 行新增&quot;
-</code></pre>
-<h2 id="七-分类">七 分类</h2>
-<pre><code>classify(state) <span class="ret">⟶</span> {&quot;files&quot;, &quot;history&quot;}
-    files = state.get(&quot;files&quot;) or {}
-    patterns = state.get(&quot;path_filter&quot;) or []
-    selected, dropped = filter_paths(files, patterns) <span class="ret">⟶</span> (dict, dict)
-        <span class="kw">if</span> not patterns:
-            <span class="kw">return</span> files, {}
-        kept = {}; dropped = {}
-        <span class="kw">for</span> path, change in files.items():
-            <span class="kw">if</span> any(pattern in path <span class="kw">for</span> pattern in patterns):
-                kept[path] = change
-            <span class="kw">else</span>:
-                dropped[path] = change
-        <span class="kw">return</span> kept, dropped
-    updated = classify_files(selected) <span class="ret">⟶</span> dict
-        <span class="kw">return</span> {path: classify_file(change) <span class="kw">for</span> path, change in files.items()}
-            classify_file(change) <span class="ret">⟶</span> FileChange
-                kind, lang, is_test = classify_path(change.path)
-                    lang = detect_lang(path) <span class="ret">⟶</span> str                 <span class="c"># 叶：按扩展名查表  [纯函数]</span>
-                        <span class="c"># .py→python，.tsx→frontend，.sql→sql，.yaml→config，.md→docs，</span>
-                        <span class="c"># 表里没有的扩展名返回 other</span>
-                    is_test = detect_test(path) <span class="ret">⟶</span> bool              <span class="c"># 叶：按路径判定  [纯函数]</span>
-                        <span class="c"># 任一层目录名为 test/tests/spec/specs/__tests__/testing，或</span>
-                        <span class="c"># 文件名主体匹配 test_*、*_test、*.test、*.spec</span>
-                    kind = &quot;test&quot; <span class="kw">if</span> is_test <span class="kw">else</span> lang
-                    <span class="kw">return</span> kind, lang, is_test
-                <span class="kw">return</span> change.model_copy(update={&quot;kind&quot;: kind, &quot;lang&quot;: lang, &quot;is_test&quot;: is_test})
-
-    summary = &quot;，&quot;.join(f&quot;{change.path}→{change.kind}&quot; <span class="kw">for</span> change in updated.values())
-    messages = [f&quot;classify：{summary or '没有文件'}&quot;]
-    <span class="kw">if</span> dropped:
-        messages.append(f&quot;classify：按 {patterns} 排除了 {len(dropped)} 个文件：{sorted(dropped)}&quot;)
-    <span class="kw">if</span> patterns and not updated:
-        messages.append(f&quot;classify：没有文件路径包含 {patterns}，本次不会审查任何文件&quot;)
-    <span class="kw">return</span> {&quot;files&quot;: updated, &quot;history&quot;: messages}
-    <span class="c"># <span class="rw-w">W:</span> files（覆盖为过滤并打标后的集合）、history</span>
-</code></pre>
-<h2 id="八-生成意见">八 生成意见</h2>
-<pre><code>review_file({file, settings}) <span class="ret">⟶</span> {&quot;drafts&quot;, &quot;history&quot;}                              <span class="tag net">[网]</span><span class="tag log">[印]</span>
-    <span class="c"># 由 Send 分派，state 参数只含 file 和 settings</span>
-    file_change = FileChange.model_validate(state[&quot;file&quot;])
-    settings = Settings.from_state(state.get(&quot;settings&quot;))          <span class="c"># <span class="rw-r">R:</span> 环境变量（补密钥）</span>
-    llm = build_chat_model(settings) <span class="ret">⟶</span> ChatOpenAI
-        <span class="kw">return</span> ChatOpenAI(model=, base_url=, api_key=, temperature=, timeout=, max_retries=1)
-    draft = generate_comments(llm, file_change, settings, attempt=0) <span class="ret">⟶</span> FileDraft
-        <span class="kw">if</span> previous:
-            system = REVISE_SYSTEM
-            user = build_revise_prompt(file_change, previous, failures or [], feedback,
-                                       settings.max_comments_per_file) <span class="ret">⟶</span> str
-            <span class="c"># 见第十节</span>
-        <span class="kw">else</span>:
-            system = REVIEW_SYSTEM
-            user = build_review_prompt(file_change, settings.max_comments_per_file) <span class="ret">⟶</span> str
-                numbered = render_numbered(file_change) <span class="ret">⟶</span> str
-                    <span class="c"># 叶：把每个 hunk 渲染成「行号 + 符号 + 内容」，最多 400 行</span>
-                test_hint = &quot;（这是测试文件，按测试的标准审）&quot; <span class="kw">if</span> file_change.is_test <span class="kw">else</span> &quot;&quot;
-                <span class="c"># 返回：文件路径、改动类型、带行号改动块、</span>
-                <span class="c">#       review_profile(kind) 给出的检查重点、条数上限</span>
-                <span class="c"># review_profile 取 PROFILES[kind] 拼 COMMON_ISSUES，</span>
-                <span class="c"># 表里没有的类型落到 PROFILES[&quot;other&quot;]</span>
-        result = structured_call(llm, CommentOut, system, user) <span class="ret">⟶</span> CommentOut
-            <span class="c"># 见第九节</span>
-        comments = [ReviewComment.from_draft(d) <span class="kw">for</span> d in result.comments[:max_comments]]
-            <span class="c"># 每条意见在此拿到一个 8 位 id，后续校验、汇总都按 id 关联</span>
-        <span class="kw">return</span> FileDraft(file_path=file_change.path, kind=file_change.kind,
-                         comments=comments, attempt=attempt)
-    <span class="kw">return</span> {&quot;drafts&quot;: {file_change.path: draft},
-            **log(f&quot;review_file：{file_change.path} 生成 {len(draft.comments)} 条意见&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> drafts[本文件路径]、history</span>
-    <span class="c"># 多路并发时每路只写自己的键，靠「按文件路径覆盖」的合并规则拼回状态</span>
-</code></pre>
-<h2 id="九-单次模型调用">九 单次模型调用</h2>
-<pre><code>structured_call(llm, schema, system, user, attempts=3) <span class="ret">⟶</span> BaseModel                 <span class="tag net">[网]</span>
-    runnable = with_structured_output(llm, schema, method=&quot;function_calling&quot;)
-        <span class="c"># 把「按 schema 回答」包装成一次工具调用，模型回的是工具参数而非自由文本</span>
-    messages = [SystemMessage(content=system), HumanMessage(content=user)]
-    last_error = <span class="kw">None</span>
-    <span class="kw">for</span> _ in range(max(1, attempts)):
-        <span class="kw">try</span>:
-            result = invoke(runnable, messages) <span class="ret">⟶</span> BaseModel                        <span class="tag net">[网]</span>
-        <span class="kw">except</span> Exception as exc:
-            last_error = exc
-            <span class="kw">continue</span>
-        <span class="kw">if</span> isinstance(result, schema):
-            <span class="kw">return</span> result
-        <span class="kw">try</span>:
-            <span class="kw">return</span> model_validate(schema, result)
-        <span class="kw">except</span> Exception as exc:
-            last_error = exc
-    <span class="kw">if</span> last_error is <span class="kw">None</span>:
-        <span class="kw">raise</span> RuntimeError(&quot;模型没有返回可解析的结构化结果&quot;)
-    <span class="kw">raise</span> last_error
-
-ping(settings) <span class="ret">⟶</span> str                                                               <span class="tag net">[网]</span>
-    llm = build_chat_model(settings)
-    reply = invoke(llm, [HumanMessage(content=&quot;回复两个字：连通&quot;)]) <span class="ret">⟶</span> AIMessage       <span class="tag net">[网]</span>
-    content = reply.content
-    <span class="kw">if</span> isinstance(content, list):
-        content = &quot;&quot;.join(part.get(&quot;text&quot;, &quot;&quot;) <span class="kw">for</span> part in content <span class="kw">if</span> isinstance(part, dict))
-    <span class="kw">return</span> str(content).strip()
-</code></pre>
-<h2 id="十-校验">十 校验</h2>
-<pre><code>verify(state) <span class="ret">⟶</span> {&quot;verdicts&quot;, &quot;history&quot;}                                            <span class="tag net">[网]</span><span class="tag log">[印]</span>
-    drafts = state.get(&quot;drafts&quot;) or {}
-    files = state.get(&quot;files&quot;) or {}
-    settings = Settings.from_state(state.get(&quot;settings&quot;))
-    llm = build_chat_model(settings)
-
-    <span class="kw">def</span> check_one(path) <span class="ret">⟶</span> (path, list[CommentVerdict])
-        <span class="rw-r">R:</span> drafts、files、llm          <span class="c"># 闭包读外层作用域，不出现在自己的签名里</span>
-        draft = drafts[path]
-        change = files.get(path)
-        <span class="kw">if</span> change is <span class="kw">None</span> or not draft.comments:
-            <span class="kw">return</span> path, [CommentVerdict(passed=<span class="kw">False</span>,
-                                         structural_issues=[&quot;这个文件不在本次改动里&quot;],
-                                         semantic_reason=&quot;位置校验未通过，没有做语义判断&quot;)
-                          <span class="kw">for</span> comment in draft.comments]
-
-        structural, pending = split_by_structural_check(change, draft.comments) <span class="ret">⟶</span> (dict, list)
-            failures = {}; pending = []
-            <span class="kw">for</span> comment in comments:
-                issues = check_comment(file_change, comment) <span class="ret">⟶</span> list[str]           <span class="c"># 见下</span>
-                <span class="kw">if</span> issues:
-                    failures[comment.id] = issues
-                <span class="kw">else</span>:
-                    pending.append(comment)
-            <span class="kw">return</span> failures, pending
-
-        semantic, error = semantic_checks(llm, change, pending) <span class="ret">⟶</span> (dict, str)
-            <span class="kw">if</span> not pending:
-                <span class="kw">return</span> {}, &quot;&quot;
-            payload = [{&quot;id&quot;: comment.id, &quot;line_start&quot;: str(...), &quot;line_end&quot;: str(...),
-                        &quot;evidence&quot;: comment.evidence, &quot;title&quot;: comment.title,
-                        &quot;detail&quot;: comment.detail} <span class="kw">for</span> comment in pending]
-            <span class="kw">try</span>:
-                result = structured_call(llm, SemanticCheckList, VERIFY_SYSTEM,
-                                         build_verify_prompt(change, payload)) <span class="ret">⟶</span> SemanticCheckList   <span class="tag net">[网]</span>
-                    <span class="c"># build_verify_prompt：文件路径 + 该文件带行号改动块 + 每条意见的</span>
-                    <span class="c"># id、行号、引用原文、标题、正文；要求逐条回填 comment_id</span>
-            <span class="kw">except</span> Exception as exc:
-                <span class="kw">return</span> {}, f&quot;语义判断调用失败：{exc}&quot;
-                <span class="c"># 语义判断失败被判为不通过，但不中断整张图</span>
-            <span class="kw">return</span> {item.comment_id: item <span class="kw">for</span> item in result.checks}, &quot;&quot;
-
-        results = []
-        <span class="kw">for</span> comment in draft.comments:
-            issues = structural.get(comment.id)
-            <span class="kw">if</span> issues:
-                verdict = CommentVerdict(passed=<span class="kw">False</span>, structural_issues=issues,
-                                         semantic_reason=&quot;位置校验未通过，没有做语义判断&quot;)
-            <span class="kw">else</span>:
-                item = semantic.get(comment.id)
-                ok = bool(item and item.supported)
-                verdict = CommentVerdict(passed=ok, semantic_ok=ok,
-                                         semantic_reason=item.reason <span class="kw">if</span> item
-                                                         <span class="kw">else</span> (error or &quot;模型没有返回这一条的判断&quot;))
-            results.append(verdict)
-        <span class="kw">return</span> path, results
-
-    order = list(drafts)
-    verdicts = {}
-    workers = max(1, settings.max_concurrency)
-    <span class="kw">if</span> workers == 1 or len(order) &lt;= 1:
-        <span class="kw">for</span> path in order:
-            key, results = check_one(path)
-            verdicts[key] = results
-    <span class="kw">else</span>:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            <span class="kw">for</span> key, results in map(pool, check_one, order):        <span class="c"># 线程池并发  <span class="tag net">[网]</span></span>
-                verdicts[key] = results
-
-    checked = sum(len(group) <span class="kw">for</span> group in verdicts.values())
-    failed = sum(1 <span class="kw">for</span> group in verdicts.values() <span class="kw">for</span> verdict in group <span class="kw">if</span> not verdict.passed)
-    <span class="kw">return</span> {&quot;verdicts&quot;: verdicts,
-            **log(f&quot;verify：第 {round_number + 1} 轮校验 {checked} 条，未通过 {failed} 条&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> verdicts、history</span>
-
-check_comment(file_change, comment) <span class="ret">⟶</span> list[str]                                    [纯函数]
-    <span class="c"># 位置校验的全部规则，不联网，答案唯一</span>
-    issues = []
-    <span class="kw">if</span> comment.file_path != file_change.path:
-        issues.append(&quot;文件路径不对：...&quot;)
-    <span class="kw">if</span> comment.line_start &lt; 1 or comment.line_end &lt; comment.line_start:
-        issues.append(&quot;行号区间不合法：...&quot;)
-    <span class="kw">elif</span> comment.line_end - comment.line_start &gt; MAX_SPAN_LINES:      <span class="c"># MAX_SPAN_LINES = 30</span>
-        issues.append(&quot;行号区间跨了 N 行，位置不具体，请收窄到 30 行以内&quot;)
-
-    window = set(range(comment.line_start, comment.line_end + 1))
-    added_numbers = set(file_change.added_lines)
-    hit = sorted(window &amp; added_numbers)
-    <span class="kw">if</span> not added_numbers:
-        issues.append(&quot;这个文件没有新增行，无法引用&quot;)
-    <span class="kw">elif</span> not hit:
-        issues.append(&quot;行号 a-b 里没有本次新增的行；本文件的新增行号是 ...&quot;)
-
-    evidence_lines = [normalize(line) <span class="kw">for</span> line in comment.evidence.splitlines()]
-    evidence_lines = [line <span class="kw">for</span> line in evidence_lines <span class="kw">if</span> line]
-    <span class="kw">if</span> not evidence_lines:
-        issues.append(&quot;evidence 是空的，必须逐字引用改动原文&quot;)
-        <span class="kw">return</span> issues
-
-    known = hunk_line_index(file_change) <span class="ret">⟶</span> set[str]
-        <span class="c"># 叶：改动原文里出现过的所有行（含上下文行、被删行）归一化后放进集合</span>
-    missing = [line <span class="kw">for</span> line in evidence_lines <span class="kw">if</span> line not in known]
-    <span class="kw">if</span> missing:
-        issues.append(&quot;引用的原文在这个文件的改动里找不到：...&quot;)
-        <span class="kw">return</span> issues
-
-    added_index = added_line_index(file_change) <span class="ret">⟶</span> dict[str, list[int]]
-        <span class="c"># 叶：归一化后的新增行内容 → 出现它的行号</span>
-    anchored = <span class="kw">False</span>
-    <span class="kw">for</span> line in evidence_lines:
-        <span class="kw">for</span> number in added_index.get(line, []):
-            <span class="kw">if</span> number in window:
-                anchored = <span class="kw">True</span>
-                <span class="kw">break</span>
-        <span class="kw">if</span> anchored:
-            <span class="kw">break</span>
-    <span class="kw">if</span> not anchored:
-        issues.append(&quot;引用的原文和给出的行号对不上：...&quot;)
-    <span class="kw">return</span> issues
-
-normalize(text) <span class="ret">⟶</span> str                                                              [纯函数]
-    <span class="kw">return</span> re.sub(r&quot;\s+&quot;, &quot; &quot;, text).strip()
-
-route_after_verify(state) <span class="ret">⟶</span> &quot;revise&quot; | &quot;aggregate&quot;
-    settings = Settings.from_state(state.get(&quot;settings&quot;))
-    round_number = state.get(&quot;revision_round&quot;, 0)
-    <span class="kw">if</span> has_failures(state) and round_number &lt; settings.max_rounds:
-        <span class="kw">return</span> &quot;revise&quot;
-    <span class="kw">return</span> &quot;aggregate&quot;
-
-has_failures(state) <span class="ret">⟶</span> bool                                                         [纯函数]
-    <span class="kw">return</span> any(not verdict.passed <span class="kw">for</span> group in verdicts.values() <span class="kw">for</span> verdict in group)
-</code></pre>
-<h2 id="十一-重做">十一 重做</h2>
-<pre><code>revise(state) <span class="ret">⟶</span> {&quot;drafts&quot;, &quot;revision_round&quot;, &quot;human_feedback&quot;, &quot;history&quot;}          <span class="tag net">[网]</span><span class="tag log">[印]</span>
-    drafts = state.get(&quot;drafts&quot;) or {}
-    verdicts = state.get(&quot;verdicts&quot;) or {}
-    files = state.get(&quot;files&quot;) or {}
-    feedback = (state.get(&quot;human_feedback&quot;) or &quot;&quot;).strip()
-    settings = Settings.from_state(state.get(&quot;settings&quot;))
-    llm = build_chat_model(settings)
-    round_number = state.get(&quot;revision_round&quot;, 0) + 1
-
-    targets = []
-    <span class="kw">for</span> path, draft in drafts.items():
-        <span class="kw">if</span> path not in files:
-            <span class="kw">continue</span>
-        <span class="kw">if</span> feedback:
-            targets.append((path, [f&quot;人工审查反馈：{feedback}&quot;]))
-            <span class="kw">continue</span>                              <span class="c"># 人工打回：这个文件整批重做</span>
-        by_id = {verdict.comment_id: verdict <span class="kw">for</span> verdict in verdicts.get(path, [])}
-        failures = [f&quot;{comment.title}（行号 a-b）：{by_id[comment.id].reason_text()}&quot;
-                    <span class="kw">for</span> comment in draft.comments
-                    <span class="kw">if</span> comment.id in by_id and not by_id[comment.id].passed]
-        <span class="kw">if</span> failures:
-            targets.append((path, failures))      <span class="c"># 只有存在失败意见的文件才进重做</span>
-
-    <span class="kw">def</span> redo(item) <span class="ret">⟶</span> (path, FileDraft)
-        <span class="rw-r">R:</span> drafts、files、llm、settings、feedback、round_number
-        path, failures = item
-        <span class="kw">return</span> path, generate_comments(llm, files[path], settings,
-                                       previous=[comment.model_dump()
-                                                 <span class="kw">for</span> comment in drafts[path].comments],
-                                       failures=failures, feedback=feedback,
-                                       attempt=round_number) <span class="ret">⟶</span> FileDraft
-            <span class="c"># 见第八节；previous 非空，因此走 REVISE_SYSTEM 与 build_revise_prompt</span>
-            <span class="c"># 提示词要求：没通过的要改到能过或删掉，通过的原样保留</span>
-            <span class="c"># 注意：模型返回的是这个文件的完整意见列表，代码不逐条比对旧列表</span>
-
-    updated = {}
-    workers = max(1, settings.max_concurrency)
-    <span class="kw">if</span> workers == 1 or len(targets) &lt;= 1:
-        <span class="kw">for</span> item in targets:
-            key, draft = redo(item)
-            updated[key] = draft
-    <span class="kw">else</span>:
-        with ThreadPoolExecutor(max_workers=workers) as pool:
-            <span class="kw">for</span> key, draft in map(pool, redo, targets):                    <span class="c"># 线程池并发  <span class="tag net">[网]</span></span>
-                updated[key] = draft
-
-    mode = &quot;按人工反馈重做&quot; <span class="kw">if</span> feedback <span class="kw">else</span> &quot;重做未通过的意见&quot;
-    <span class="kw">return</span> {&quot;drafts&quot;: updated, &quot;revision_round&quot;: round_number, &quot;human_feedback&quot;: &quot;&quot;,
-            **log(f&quot;revise：第 {round_number} 轮，{mode}，涉及 {len(updated)} 个文件&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> drafts[被重做的路径]、revision_round、human_feedback（清空）、history</span>
-</code></pre>
-<h2 id="十二-汇总">十二 汇总</h2>
-<pre><code>aggregate(state) <span class="ret">⟶</span> {&quot;report&quot;, &quot;history&quot;}                                           [纯函数]
-    drafts = state.get(&quot;drafts&quot;) or {}
-    verdicts = state.get(&quot;verdicts&quot;) or {}
-    files = state.get(&quot;files&quot;) or {}
-    settings = Settings.from_state(state.get(&quot;settings&quot;))
-    file_reports = []; unresolved = []; by_severity = {&quot;high&quot;: 0, &quot;medium&quot;: 0, &quot;low&quot;: 0}
-    total = 0; verified = 0
-
-    <span class="kw">for</span> path in sorted(drafts):
-        draft = drafts[path]; change = files.get(path)
-        by_id = {verdict.comment_id: verdict <span class="kw">for</span> verdict in verdicts.get(path, [])}
-        comments = []
-        <span class="kw">for</span> comment in draft.comments:
-            verdict = by_id.get(comment.id)
-            passed = bool(verdict and verdict.passed)
-            total += 1
-            by_severity[comment.severity] += 1
-            <span class="kw">if</span> passed:
-                verified += 1
-            <span class="kw">else</span>:
-                issues = list(verdict.structural_issues) <span class="kw">if</span> verdict <span class="kw">else</span> [&quot;没有校验结论&quot;]
-                <span class="kw">if</span> verdict and verdict.semantic_reason:
-                    issues.append(verdict.semantic_reason)
-                unresolved.append(UnresolvedItem(file_path=path, title=comment.title,
-                                                 line_start=..., line_end=..., issues=issues))
-                <span class="c"># 到轮次上限仍未通过的意见不丢弃，单独进报告的「未通过校验」一节</span>
-            comments.append(CommentReport(id=..., line_start=..., line_end=...,
-                                          severity=..., category=..., title=...,
-                                          detail=..., evidence=..., verified=passed))
-        sort(comments, key=(SEVERITY_ORDER[severity], line_start))    <span class="c"># severity 高的在前</span>
-        file_reports.append(FileReport(path=path, kind=draft.kind,
-                                       lang=change.lang <span class="kw">if</span> change <span class="kw">else</span> &quot;other&quot;,
-                                       change_type=change.change_type <span class="kw">if</span> change <span class="kw">else</span> &quot;modified&quot;,
-                                       comments=comments))
-
-    report = Report(model=settings.model, source=state.get(&quot;source&quot;, &quot;&quot;),
-                    stats=ReportStats(files_reviewed=len(file_reports), comments_total=total,
-                                      comments_verified=verified, by_severity=by_severity,
-                                      rounds=state.get(&quot;revision_round&quot;, 0)),
-                    files=file_reports, unresolved=unresolved)
-    <span class="kw">return</span> {&quot;report&quot;: report.model_dump(),
-            **log(f&quot;aggregate：{total} 条意见，通过校验 {verified} 条，待人工判断 {total - verified} 条&quot;)}
-    <span class="c"># <span class="rw-w">W:</span> report、history</span>
-</code></pre>
-<h2 id="十三-人工确认与落盘">十三 人工确认与落盘</h2>
-<pre><code>human_gate(state) <span class="ret">⟶</span> {&quot;decision&quot;, &quot;human_feedback&quot;, &quot;revision_round&quot;, &quot;history&quot;}     <span class="tag log">[印]</span>
-    payload = {&quot;question&quot;: &quot;报告已生成，选择下一步&quot;,
-               &quot;choices&quot;: [&quot;approve&quot;, &quot;revise&quot;, &quot;abort&quot;],
-               &quot;report&quot;: state.get(&quot;report&quot;) or {}}
-    answer = interrupt(payload) <span class="ret">⟶</span> 人的选择
-        <span class="c"># 图在此原地暂停，状态存入 checkpointer，进程可以退出；</span>
-        <span class="c"># 恢复时本节点从头重跑，因此 interrupt 之前不能有副作用</span>
-
-    <span class="kw">if</span> isinstance(answer, dict):
-        choice = str(answer.get(&quot;decision&quot;, &quot;&quot;)).strip().lower()
-        feedback = str(answer.get(&quot;feedback&quot;, &quot;&quot;)).strip()
-    <span class="kw">else</span>:
-        choice = str(answer).strip().lower()
-        feedback = &quot;&quot;
-    <span class="kw">if</span> choice not in CHOICES:
-        choice, feedback = &quot;abort&quot;, f&quot;收到无法识别的选择 {choice!r}，按放弃处理&quot;
-    <span class="kw">return</span> {&quot;decision&quot;: choice, &quot;human_feedback&quot;: feedback, &quot;revision_round&quot;: 0, ...}
-    <span class="c"># <span class="rw-w">W:</span> decision、human_feedback、revision_round（归零，让打回后重新获得完整重做轮次）</span>
-
-route_after_human_gate(state) <span class="ret">⟶</span> &quot;finalize&quot; | &quot;revise&quot; | END
-    decision = state.get(&quot;decision&quot;, &quot;abort&quot;)
-    <span class="kw">if</span> decision == &quot;approve&quot;:
-        <span class="kw">return</span> &quot;finalize&quot;
-    <span class="kw">if</span> decision == &quot;revise&quot;:
-        <span class="kw">return</span> &quot;revise&quot;
-    <span class="kw">return</span> END                                   <span class="c"># 放弃：交给框架结束流程，不写报告</span>
-
-finalize(state) <span class="ret">⟶</span> {&quot;output_paths&quot;, &quot;history&quot;}                                       <span class="tag file">[文]</span><span class="tag log">[印]</span>
-    report = Report.model_validate(state[&quot;report&quot;] or {})
-    output_dir = Path(state.get(&quot;output_dir&quot;) or &quot;out&quot;)
-    mkdir(output_dir, parents=<span class="kw">True</span>, exist_ok=<span class="kw">True</span>) <span class="ret">⟶</span> <span class="kw">None</span>                            <span class="tag file">[文]</span>
-    json_path = output_dir / &quot;report.json&quot;
-    markdown_path = output_dir / &quot;report.md&quot;
-    write_text(json_path, report.model_dump_json(indent=2), encoding=&quot;utf-8&quot;)        <span class="tag file">[文]</span>
-    write_text(markdown_path, report.to_markdown(), encoding=&quot;utf-8&quot;)                <span class="tag file">[文]</span>
-    <span class="kw">return</span> {&quot;output_paths&quot;: [str(json_path), str(markdown_path)], ...}
-    <span class="c"># <span class="rw-w">W:</span> output_paths、history</span>
-</code></pre>
-<h2 id="十四-其他子命令">十四 其他子命令</h2>
-<pre><code>doctor(model, base_url)
-    settings = load_settings(model=, base_url=) <span class="ret">⟶</span> Settings
-    print(接口地址 / 模型名 / 密钥是否配置)                                            <span class="tag log">[印]</span>
-    <span class="kw">try</span>:
-        print(f&quot;文本调用：{ping(settings)}&quot;)                                          <span class="tag log">[印]</span><span class="tag net">[网]</span>
-    <span class="kw">except</span> Exception as exc:
-        print(f&quot;文本调用失败：{exc}&quot;)                                                 <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    sample = &quot;    1 + <span class="kw">def</span> div(a, b):\n    2 +     <span class="kw">return</span> a / b&quot;
-    <span class="kw">try</span>:
-        result = structured_call(build_chat_model(settings), CommentOut, 系统提示, 用户提示)
-                 <span class="ret">⟶</span> CommentOut                                                        <span class="tag net">[网]</span>
-    <span class="kw">except</span> Exception as exc:
-        print(f&quot;结构化输出失败：{exc}&quot;)                                               <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    print(返回条数；若有则打印首条的路径、行号、级别、标题、引用原文)                        <span class="tag log">[印]</span>
-    print(&quot;自检通过&quot;)                                                                <span class="tag log">[印]</span>
-
-checkpoint(kind, db)
-    saver = make_checkpointer(kind, db) <span class="ret">⟶</span> BaseCheckpointSaver                        <span class="tag db">[存]</span>
-    print(检查点类型、文件名)                                                         <span class="tag log">[印]</span>
-
-graph()
-    compiled = build_graph() <span class="ret">⟶</span> CompiledStateGraph
-    print(draw_mermaid(get_graph(compiled)))                                         <span class="tag log">[印]</span>
-
-ingest(from_git, patch, diff_text, numbered)
-    source = _resolve_source(from_git, patch, diff_text) <span class="ret">⟶</span> dict
-    state = ingest_node({&quot;diff_source&quot;: source}) <span class="ret">⟶</span> dict                              <span class="tag proc">[进]</span><span class="tag file">[文]</span>
-    changes = parse_unified_diff(state[&quot;diff_text&quot;]) <span class="ret">⟶</span> list[FileChange]
-    print(来源、解析摘要)                                                             <span class="tag log">[印]</span>
-    <span class="kw">for</span> change in changes:
-        print(路径、改动类型、新增行数、前十个新增行号)                                    <span class="tag log">[印]</span>
-    <span class="kw">if</span> numbered:
-        <span class="kw">for</span> change in changes:
-            print(Rule(change.path))                                                 <span class="tag log">[印]</span>
-            print(render_numbered(change))                                           <span class="tag log">[印]</span>
-
-show(report, min_severity, only_file, unverified_only)
-    threshold = SEVERITY_ORDER.get(min_severity)
-    <span class="kw">if</span> threshold is <span class="kw">None</span>:
-        print(&quot;不认识的级别：...&quot;)                                                    <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    path = Path(report)
-    <span class="kw">if</span> not is_file(path):
-        print(&quot;找不到报告文件：...&quot;)                                                  <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    parsed = model_validate_json(Report, read_text(path)) <span class="ret">⟶</span> Report                   <span class="tag file">[文]</span>
-    shown = 0
-    <span class="kw">for</span> file_report in parsed.files:
-        <span class="kw">if</span> only_file and file_report.path != only_file:
-            <span class="kw">continue</span>
-        picked = [comment <span class="kw">for</span> comment in file_report.comments
-                  <span class="kw">if</span> SEVERITY_ORDER.get(comment.severity, 0) &gt;= threshold
-                  and (comment.verified or not unverified_only)]
-        <span class="kw">if</span> not picked:
-            <span class="kw">continue</span>
-        print(文件路径、类型、条数)                                                    <span class="tag log">[印]</span>
-        <span class="kw">for</span> comment in picked:
-            print(行号、级别、标题、未通过标记)                                          <span class="tag log">[印]</span>
-        shown += len(picked)
-    print(f&quot;共筛出 {shown} 条，报告共 {parsed.stats.comments_total} 条&quot;)               <span class="tag log">[印]</span>
-
-resume(thread, db, auto_approve)
-    settings = load_settings() <span class="ret">⟶</span> Settings
-    config = {&quot;configurable&quot;: {&quot;thread_id&quot;: thread}, &quot;max_concurrency&quot;: ...}
-    compiled = build_graph(make_checkpointer(&quot;sqlite&quot;, db))                         <span class="tag db">[存]</span>
-    snapshot = get_state(compiled, config) <span class="ret">⟶</span> StateSnapshot                          <span class="tag db">[存]</span>
-    <span class="kw">if</span> not snapshot or not snapshot.values:
-        print(f&quot;检查点 {db} 里没有会话 {thread}&quot;)                                     <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    <span class="kw">if</span> _first_interrupt(snapshot) is <span class="kw">None</span>:
-        print(f&quot;会话 {thread} 没有停在人工确认上&quot;)                                     <span class="tag log">[印]</span>
-        <span class="kw">raise</span> Exit(code=1)
-    print(f&quot;会话 {thread}｜从 {db} 恢复&quot;)                                            <span class="tag log">[印]</span>
-    payload = Command(resume={&quot;decision&quot;: &quot;approve&quot;}) <span class="kw">if</span> auto_approve <span class="kw">else</span> <span class="kw">None</span>
-    <span class="c"># payload 为 <span class="kw">None</span> 时框架从检查点重新执行被中断的 human_gate</span>
-    values = _drive(compiled, payload, config, auto_approve, <span class="kw">None</span>) <span class="ret">⟶</span> dict
-    print(结果与输出路径)                                                             <span class="tag log">[印]</span>
-</code></pre>
-<h2 id="十五-数据注入链">十五 数据注入链</h2>
-<h3 id="15-1-改动文本进入审查提示词">15.1 改动文本进入审查提示词</h3>
-<pre><code>来源：git diff 输出 / patch 文件 / --diff-text                           <span class="tag proc">[进]</span><span class="tag file">[文]</span>
+<h2 id="二-数据注入链">二 数据注入链</h2>
+<h3 id="2-1-改动文本进入审查提示词">2.1 改动文本进入审查提示词</h3>
+<pre><code>来源：patch 文件 samples/demo<span class="tok-attr">.diff</span>                                          <span class="tag file">[文]</span>
     │
-    │ ingest 写入 state.diff_text
+    │ ingest 写入 state<span class="tok-attr">.diff_text</span>
     ▼
-state.diff_text
+state<span class="tok-attr">.diff_text</span>（82 行）
     │
     │ parse_diff → parse_unified_diff
     ▼
-FileChange.hunks（原始行，带 + - 空格前缀）
-FileChange.added_lines = {新文件行号 → 行内容}       ← 后续所有行号校验的唯一依据
+FileChange<span class="tok-attr">.hunks</span>（原始行，带 + - 空格前缀）
+FileChange<span class="tok-attr">.added_lines</span> = {新文件行号 → 行内容}      ← 行号校验的唯一依据
     │
-    │ 过滤：只取被 Send 分派的那一个文件
+    │ fan_out_files 按文件切成多路，每路只带走一个文件
     ▼
-render_numbered(file_change, max_lines=400) <span class="ret">⟶</span> str
+<span class="tok-fn">render_numbered</span>(file_change, <span class="tok-param">max_lines</span>=400) <span class="ret">⟶</span> str
     │ 行号右对齐 + 符号 + 内容；超过 400 行截断并标注
     ▼
-build_review_prompt(file_change, max_comments) <span class="ret">⟶</span> str
+<span class="tok-fn">build_review_prompt</span>(file_change, max_comments) <span class="ret">⟶</span> str
     │ │
     │ ├─ 注入位置 1：文件路径、改动类型、是否测试文件
-    │ ├─ 注入位置 2：提示词中围栏内的带行号改动块（上面 render_numbered 的结果）
-    │ └─ 注入位置 3：review_profile(kind) —— 该类型的检查重点 + 通用检查方向
+    │ ├─ 注入位置 2：围栏内的带行号改动块（render_numbered 的结果）
+    │ └─ 注入位置 3：<span class="tok-fn">review_profile</span>(kind) —— 该类型的检查重点 + 通用检查方向
     ▼
-structured_call(llm, CommentOut, REVIEW_SYSTEM, user)                  <span class="tag net">[网]</span>
+<span class="tok-fn">structured_call</span>(llm, CommentOut, REVIEW_SYSTEM, user)
     │ 以名为 CommentOut 的工具形式下发结构约束
     ▼
-模型 → CommentOut.comments（file_path, line_start, line_end, severity,
+模型 → CommentOut<span class="tok-attr">.comments</span>（file_path, line_start, line_end, severity,
                             category, title, detail, evidence）
 </code></pre>
-<h3 id="15-2-意见进入校验提示词">15.2 意见进入校验提示词</h3>
-<pre><code>CommentOut.comments
-    │ ReviewComment.from_draft 逐条转换，补上 8 位 id
+<h3 id="2-2-意见进入校验提示词">2.2 意见进入校验提示词</h3>
+<pre><code>CommentOut<span class="tok-attr">.comments</span>
+    │ ReviewComment<span class="tok-attr">.from_draft</span> 逐条转换，补上 8 位 id
     ▼
-FileDraft.comments ──写入──► state.drafts[文件路径]          <span class="c"># W，按文件路径覆盖</span>
+FileDraft<span class="tok-attr">.comments</span> ──写入──► state<span class="tok-attr">.drafts</span>[文件路径]           <span class="cmt"># W，按文件路径覆盖</span>
     │
     │ split_by_structural_check → check_comment
-    ├──────────────► 位置校验不过：structural[comment.id] = 失败原因
-    │                    │
-    │                    ▼
-    │                不经模型，直接进 verdicts，passed=<span class="kw">False</span>
+    ├──────► 位置校验不过：structural[comment<span class="tok-attr">.id</span>] = 失败原因
+    │            │
+    │            ▼
+    │        不经模型，直接进 verdicts，<span class="tok-param">passed</span> = <span class="tok-kw">False</span>
     │ 位置校验通过：pending
     ▼
-semantic_checks(llm, file_change, pending)
+<span class="tok-fn">semantic_checks</span>(llm, file_change, pending)
     │ 组装 payload：每条取 id、line_start、line_end、evidence、title、detail
     ▼
-build_verify_prompt(file_change, payload) <span class="ret">⟶</span> str
+<span class="tok-fn">build_verify_prompt</span>(file_change, payload) <span class="ret">⟶</span> str
     │ │
     │ ├─ 注入位置 1：文件路径
     │ ├─ 注入位置 2：该文件带行号改动块（再次调用 render_numbered）
     │ └─ 注入位置 3：逐条意见的 id、行号、引用原文、标题、正文
     ▼
-structured_call(llm, SemanticCheckList, VERIFY_SYSTEM, user)           <span class="tag net">[网]</span>
+<span class="tok-fn">structured_call</span>(llm, SemanticCheckList, VERIFY_SYSTEM, user)
     ▼
-SemanticCheckList.checks → {comment_id → SemanticCheck(supported, reason)}
+SemanticCheckList<span class="tok-attr">.checks</span> → {comment_id → <span class="tok-fn">SemanticCheck</span>(supported, reason)}
     │
     ▼
-CommentVerdict ──写入──► state.verdicts[文件路径]            <span class="c"># W，按文件路径覆盖</span>
+CommentVerdict ──写入──► state<span class="tok-attr">.verdicts</span>[文件路径]             <span class="cmt"># W，按文件路径覆盖</span>
 </code></pre>
-<h3 id="15-3-校验结论进入重做提示词">15.3 校验结论进入重做提示词</h3>
-<pre><code>state.verdicts[文件路径] + state.drafts[文件路径] + state.human_feedback
+<h3 id="2-3-校验结论进入重做提示词">2.3 校验结论进入重做提示词</h3>
+<pre><code>state<span class="tok-attr">.verdicts</span>[文件路径] + state<span class="tok-attr">.drafts</span>[文件路径] + state<span class="tok-attr">.human_feedback</span>
     │
-    │ revise：按文件聚合
-    ├── 人工打回（feedback 非空）→ failures = [&quot;人工审查反馈：...&quot;]，该文件整批重做
-    └── 自动重做 → failures = [&quot;标题（行号 a-b）：失败原因&quot;，...]
-                    失败原因来自 CommentVerdict.reason_text()
+    │ revise 按文件聚合
+    ├── 人工打回（feedback 非空）→ <span class="tok-param">failures</span> = [<span class="tok-str">&quot;人工审查反馈：...&quot;</span>],，该文件整批重做
+    └── 自动重做 → <span class="tok-param">failures</span> = [<span class="tok-str">&quot;标题（行号 a-b）：失败原因&quot;</span>, ...]
+                    失败原因来自 CommentVerdict<span class="tok-attr">.reason_text</span>()
                     位置类原因直接给出「本文件的新增行号是 ...」
     ▼
-build_revise_prompt(file_change, previous, failures, feedback, max_comments) <span class="ret">⟶</span> str
-    │ previous = 上一轮这个文件的完整意见列表（id、标题、行号、引用原文、正文）
+<span class="tok-fn">build_revise_prompt</span>(file_change, previous, failures, feedback, max_comments) <span class="ret">⟶</span> str
+    │ <span class="tok-param">previous</span> = 上一轮这个文件的完整意见列表（id、标题、行号、引用原文、正文）
     │ │
     │ ├─ 注入位置 1：文件路径、改动类型
     │ ├─ 注入位置 2：带行号改动块
     │ ├─ 注入位置 3：上一轮完整意见列表
     │ ├─ 注入位置 4：未通过校验的意见及原因（有失败时）
     │ ├─ 注入位置 5：人工审查反馈（人工打回时）
-    │ └─ 注入位置 6：review_profile(kind)
+    │ └─ 注入位置 6：<span class="tok-fn">review_profile</span>(kind)
     ▼
-structured_call(llm, CommentOut, REVISE_SYSTEM, user)                  <span class="tag net">[网]</span>
+<span class="tok-fn">structured_call</span>(llm, CommentOut, REVISE_SYSTEM, user)
     ▼
-CommentOut.comments → 覆盖 state.drafts[文件路径]，回到 verify
+CommentOut<span class="tok-attr">.comments</span> → 覆盖 state<span class="tok-attr">.drafts</span>[文件路径]，回到 verify
 </code></pre>
-<h3 id="15-4-配置与密钥进入每次模型调用">15.4 配置与密钥进入每次模型调用</h3>
-<pre><code>.env 文件 / 环境变量                                            <span class="tag file">[文]</span>
+<h3 id="2-4-配置与密钥进入每次模型调用">2.4 配置与密钥进入每次模型调用</h3>
+<pre><code><span class="tok-attr">.env</span> 文件 / 环境变量                                                    <span class="tag file">[文]</span>
     │ load_settings → load_dotenv + getenv
     ▼
 Settings（含 api_key）
     │
-    │ Settings.for_state() 弹出 api_key
+    │ Settings<span class="tok-attr">.for_state</span>() 弹出 api_key
     ▼
-state.settings（不含密钥）──► 存入检查点，落盘的内容里没有密钥            <span class="tag db">[存]</span><span class="tag file">[文]</span>
+state<span class="tok-attr">.settings</span>（不含密钥）──► 存入检查点，落盘内容里不会出现密钥              <span class="tag db">[存]</span><span class="tag file">[文]</span>
     │
-    │ 每个要模型的节点：Settings.from_state(state.settings)
-    │ 发现 api_key 为空 → resolve_api_key() 从环境变量补回
+    │ 每个要模型的节点：Settings<span class="tok-attr">.from_state</span>(state<span class="tok-attr">.settings</span>)
+    │ 发现 api_key 为空 → <span class="tok-fn">resolve_api_key</span>() 从环境变量补回
     ▼
-build_chat_model(settings) <span class="ret">⟶</span> ChatOpenAI(model, base_url, api_key, temperature, timeout)
+<span class="tok-fn">build_chat_model</span>(settings) <span class="ret">⟶</span> <span class="tok-fn">ChatOpenAI</span>(model, base_url, api_key, temperature, timeout)
     ▼
-structured_call(...) → invoke(...)                                     <span class="tag net">[网]</span>
+<span class="tok-fn">structured_call</span>(...) → <span class="tok-fn">invoke</span>(...)                                      <span class="tag net">[网]</span>
 </code></pre>
-<h3 id="15-5-结果进入报告文件">15.5 结果进入报告文件</h3>
-<pre><code>state.drafts（每个文件的意见，按路径）
-state.verdicts（每条意见的通过与否和原因，按路径）
-state.files（每个文件的类型、改动类型）
-state.revision_round、state.source
+<h3 id="2-5-结果进入报告文件">2.5 结果进入报告文件</h3>
+<pre><code>state<span class="tok-attr">.drafts</span>（每个文件的意见，按路径）
+state<span class="tok-attr">.verdicts</span>（每条意见的通过与否和原因，按路径）
+state<span class="tok-attr">.files</span>（每个文件的类型、改动类型）
+state<span class="tok-attr">.revision_round</span>、state<span class="tok-attr">.source</span>
     │
     ▼
-aggregate(state)
+<span class="tok-fn">aggregate</span>(state)
     │ 逐文件逐条比对 drafts 与 verdicts，按 id 关联
     │
-    ├─► FileReport.comments（每条带 verified 标记，按 severity 排序）
-    └─► Report.unresolved（到上限仍未通过的条目，附失败原因）
+    ├─► FileReport<span class="tok-attr">.comments</span>（每条带 verified 标记，按 severity 排序）
+    └─► Report<span class="tok-attr">.unresolved</span>（到上限仍未通过的条目，附失败原因）
     ▼
-state.report
+state<span class="tok-attr">.report</span>
     │
     ▼
-finalize(state)
-    │ ├─ report.json：Report.model_dump_json(indent=2)
-    │ └─ report.md：Report.to_markdown()
+<span class="tok-fn">finalize</span>(state)
+    │ ├─ report<span class="tok-attr">.json</span>：Report<span class="tok-attr">.model_dump_json</span>(<span class="tok-param">indent</span>=2)
+    │ └─ report<span class="tok-attr">.md</span>：Report<span class="tok-attr">.to_markdown</span>()
     ▼
-out/report.json、out/report.md                                         <span class="tag file">[文]</span>
+out_reject/report<span class="tok-attr">.json</span>、out_reject/report<span class="tok-attr">.md</span>                            <span class="tag file">[文]</span>
 </code></pre>
-<h3 id="15-6-人的选择进入图">15.6 人的选择进入图</h3>
+<h3 id="2-6-人的选择进入图">2.6 人的选择进入图</h3>
 <pre><code>stdin 输入（_interactive_decision）或命令行参数（--auto-approve / --reject-first）
     │
     ▼
-Command(resume={&quot;decision&quot;: ..., &quot;feedback&quot;: ...})
+<span class="tok-fn">Command</span>(<span class="tok-param">resume</span>={<span class="tok-str">&quot;decision&quot;</span>: ..., <span class="tok-str">&quot;feedback&quot;</span>: ...})
     │ 由 _drive 作为下一轮 stream 的输入
     ▼
-interrupt(payload) 的返回值 → human_gate 内的 answer
+<span class="tok-fn">interrupt</span>(payload) 的返回值 → human_gate 内的 answer
     │
-    ├─ decision 写入 state.decision ──► route_after_human_gate 读它决定去向
-    ├─ feedback 写入 state.human_feedback ──► revise 读它触发整批重做
+    ├─ decision 写入 state<span class="tok-attr">.decision</span> ──► route_after_human_gate 读它决定去向
+    ├─ feedback 写入 state<span class="tok-attr">.human_feedback</span> ──► revise 读它触发整批重做
     └─ revision_round 归零 ──► 打回后重新获得完整的自动重做轮次
 </code></pre>
 

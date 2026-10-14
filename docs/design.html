@@ -12,10 +12,14 @@
   --line: #d8dee4;
   --code-bg: #f6f8fa;
   --accent: #0969da;
-  --kw: #57606a;
   --cmt: #8b949e;
-  --ret: #8250df;
-  --rw-r: #0969da;
+  --kw: #8250df;
+  --fn: #0550ae;
+  --param: #953800;
+  --attr: #0d7d8f;
+  --str: #0a7a33;
+  --ret: #bf3989;
+  --rw-r: #0550ae;
   --rw-w: #cf222e;
   --sf-net: #0969da;   --sf-net-bg: #ddf4ff;
   --sf-log: #8250df;   --sf-log-bg: #f3ebff;
@@ -31,9 +35,13 @@
     --line: #2b2f36;
     --code-bg: #1c1f24;
     --accent: #6cb6ff;
-    --kw: #a5b0bd;
     --cmt: #7d8590;
-    --ret: #d2a8ff;
+    --kw: #d2a8ff;
+    --fn: #79c0ff;
+    --param: #ffa657;
+    --attr: #76e3ea;
+    --str: #7ee787;
+    --ret: #f778ba;
     --rw-r: #79c0ff;
     --rw-w: #ff7b72;
     --sf-net: #79c0ff;   --sf-net-bg: rgba(56, 139, 253, 0.18);
@@ -108,16 +116,21 @@ pre code {
   background: none;
   border: 0;
   padding: 0;
-  font-size: 13px;
-  line-height: 1.6;
+  font-size: 13.5px;
+  line-height: 1.68;
   white-space: pre;
   tab-size: 4;
 }
-.kw { color: var(--kw); font-weight: 500; }
-.c { color: var(--cmt); }
-.ret { color: var(--ret); font-weight: 600; }
-.rw-r { color: var(--rw-r); font-weight: 600; }
-.rw-w { color: var(--rw-w); font-weight: 600; }
+.cmt { color: var(--cmt); }
+.tok-kw { color: var(--kw); }
+.tok-fn { color: var(--fn); }
+.tok-param { color: var(--param); }
+.tok-attr { color: var(--attr); }
+.tok-str { color: var(--str); }
+.ret { color: var(--ret); font-weight: 700; }
+.rw { font-weight: 700; }
+.rw-r { color: var(--rw-r); }
+.rw-w { color: var(--rw-w); }
 .tag { border-radius: 4px; padding: 0 4px; font-weight: 600; }
 .tag.net { color: var(--sf-net); background: var(--sf-net-bg); }
 .tag.log { color: var(--sf-log); background: var(--sf-log-bg); }
@@ -167,10 +180,10 @@ blockquote {
 <h2 id="状态与合并规则">状态与合并规则</h2>
 <p>图的状态里有两个字段是并发写的：<code>drafts</code>（每个文件的审查结果）和 <code>verdicts</code>（校验结论）。
 它们不用列表累积，而是用「按文件路径覆盖」的合并规则：</p>
-<pre><code><span class="kw">def</span> merge_by_file(left, right):
-    merged = dict(left or {})
-    merged.update(right or {})
-    <span class="kw">return</span> merged
+<pre><code><span class="tok-kw">def</span> <span class="tok-fn">merge_by_file</span>(left, right):
+    <span class="tok-param">merged</span> = <span class="tok-fn">dict</span>(left <span class="tok-kw">or</span> {})
+    merged<span class="tok-attr">.update</span>(right <span class="tok-kw">or</span> {})
+    <span class="tok-kw">return</span> merged
 </code></pre>
 <p>一条规则同时解决三件事：</p>
 <ul>
@@ -178,13 +191,13 @@ blockquote {
 <li>重做某个文件时，用同一个键写回去，旧结果被替换；</li>
 <li>人工打回时整批重做，键不变，结果整体刷新。</li>
 </ul>
-<p>换成列表加 <code>operator.add</code> 就会出问题：重做一次，同一份意见会在列表里出现两次。</p>
+<p>换成列表加 <code>operator<span class="tok-attr">.add</span></code> 就会出问题：重做一次，同一份意见会在列表里出现两次。</p>
 <h2 id="意见的-id">意见的 id</h2>
 <p>每条意见在进入状态时生成一个 8 位 id。校验结论、重做输入、报告条目都按这个 id 关联，
 所以重做之后新旧意见不会串。</p>
 <h2 id="有依据-拆成两层">「有依据」拆成两层</h2>
 <p>要求模型「给出有依据的意见」本身没法判定。所以把它拆成两层：</p>
-<p><strong>位置层，纯代码判定。</strong> 在 <code>verification.py</code> 里比对：</p>
+<p><strong>位置层，纯代码判定。</strong> 在 <code>verification<span class="tok-attr">.py</span></code> 里比对：</p>
 <ol>
 <li><code>file_path</code> 在本次改动里；</li>
 <li><code>line_start</code> 到 <code>line_end</code> 内至少有一行属于新增行；</li>
@@ -214,13 +227,13 @@ blockquote {
 <li><code>verify</code> 和 <code>revise</code> 是单节点，但内部按文件用线程池并发，同样受 <code>max_concurrency</code> 限制。</li>
 </ul>
 <h2 id="人工确认与检查点">人工确认与检查点</h2>
-<p><code>human_gate</code> 用 <code>interrupt()</code> 原地暂停，节点的剩余部分在恢复时重新执行，所以
-<code>interrupt()</code> 之前不能有副作用。</p>
+<p><code>human_gate</code> 用 <code><span class="tok-fn">interrupt</span>()</code> 原地暂停，节点的剩余部分在恢复时重新执行，所以
+<code><span class="tok-fn">interrupt</span>()</code> 之前不能有副作用。</p>
 <p>检查点先内存后 SQLite。内存检查点只在进程内有效；换 SQLite 之后状态落盘，
 进程退出后可以用会话 id 在另一个进程里接着跑（<code>review resume --thread &lt;id&gt;</code>）。</p>
-<p>状态里不放 API 密钥：<code>Settings.for_state()</code> 会把它去掉，密钥由各节点在需要时从环境变量读。
+<p>状态里不放 API 密钥：<code>Settings<span class="tok-attr">.for_state</span>()</code> 会把它去掉，密钥由各节点在需要时从环境变量读。
 这样检查点文件和日志里都不会出现密钥。</p>
-<p>自定义类型进检查点需要在序列化器里显式放行，见 <code>graph.py</code> 的 <code>make_serde()</code>。</p>
+<p>自定义类型进检查点需要在序列化器里显式放行，见 <code>graph<span class="tok-attr">.py</span></code> 的 <code><span class="tok-fn">make_serde</span>()</code>。</p>
 
 <p class="foot">由 <code>scripts/render_doc.py</code> 从 design.md 生成。改文档后重新运行脚本即可。</p>
 </main>
