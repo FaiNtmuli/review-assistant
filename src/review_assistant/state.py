@@ -24,6 +24,7 @@ class ReviewState(TypedDict, total=False):
     source: str
     diff_source: dict[str, str]
     output_dir: str
+    path_filter: list[str]
     settings: dict[str, Any]
 
     # 解析与分类

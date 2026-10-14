@@ -49,6 +49,9 @@ review ingest --patch samples/demo.diff --numbered
 # 跑完整流程
 review run --patch samples/demo.diff --out out --auto-approve
 review run --from-git HEAD~1 --out out
+
+# 大改动里只看某几个目录
+review run --from-git HEAD~1 --paths "src/,config/" --out out
 ```
 
 人工确认有两个分支可以试：

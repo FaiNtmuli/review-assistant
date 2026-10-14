@@ -51,6 +51,30 @@ def test_fan_out_falls_back_to_aggregate_without_files():
     assert fan_out_files({"files": {}, "settings": {}}) == "aggregate"
 
 
+def test_fan_out_respects_path_filter():
+    state = {
+        "files": {
+            "src/app.py": FileChange(path="src/app.py"),
+            "docs/guide.md": FileChange(path="docs/guide.md"),
+            "src/db.py": FileChange(path="src/db.py"),
+        },
+        "settings": Settings().for_state(),
+        "path_filter": ["src/"],
+    }
+    result = fan_out_files(state)
+    assert isinstance(result, list)
+    assert {item.arg["file"]["path"] for item in result} == {"src/app.py", "src/db.py"}
+
+
+def test_fan_out_falls_back_when_filter_matches_nothing():
+    state = {
+        "files": {"src/app.py": FileChange(path="src/app.py")},
+        "settings": Settings().for_state(),
+        "path_filter": ["nowhere/"],
+    }
+    assert fan_out_files(state) == "aggregate"
+
+
 def test_verify_routes_to_revise_while_rounds_remain():
     state = {
         "settings": Settings(max_rounds=3).for_state(),

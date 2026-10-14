@@ -101,6 +101,13 @@ def _resolve_source(
     return {"type": "text", "text": diff_text or ""}
 
 
+def parse_paths(raw: str | None) -> list[str]:
+    """把 --paths "app/,config/" 拆成关键词列表。"""
+    if not raw:
+        return []
+    return [part.strip() for part in raw.split(",") if part.strip()]
+
+
 @app.command()
 def ingest(
     from_git: Annotated[Optional[str], typer.Option("--from-git", help="git 提交范围，如 HEAD~1")] = None,
@@ -254,6 +261,9 @@ def run(
     kind: Annotated[str, typer.Option("--checkpointer", help="memory 或 sqlite")] = "memory",
     db: Annotated[str, typer.Option("--db", help="sqlite 检查点文件")] = "checkpoints.db",
     thread: Annotated[Optional[str], typer.Option("--thread", help="会话 id，断点恢复时用它接上")] = None,
+    paths: Annotated[
+        Optional[str], typer.Option("--paths", help="只审查路径里包含这些关键词的文件，逗号分隔")
+    ] = None,
     model: ModelOpt = None,
     base_url: BaseUrlOpt = None,
     max_concurrency: Annotated[int, typer.Option("--max-concurrency", help="同时在跑的模型调用数")] = 4,
@@ -268,6 +278,7 @@ def run(
 ) -> None:
     """跑完整流程：读入 → 解析 → 分类 → 并发审查 → 校验 → 汇总 → 人工确认 → 输出。"""
     source = _resolve_source(from_git, patch, diff_text)
+    path_filter = parse_paths(paths)
     settings = load_settings(
         model=model,
         base_url=base_url,
@@ -283,11 +294,14 @@ def run(
     console.print(
         f"会话 {thread_id}｜模型 {settings.model}｜检查点 {kind}｜并发 {settings.max_concurrency}"
     )
+    if path_filter:
+        console.print(f"只审查路径里包含 {path_filter} 的文件")
     compiled = build_graph(make_checkpointer(kind, db))
 
     initial: dict[str, Any] = {
         "diff_source": source,
         "output_dir": out,
+        "path_filter": path_filter,
         "settings": settings.for_state(),
         "drafts": {},
         "verdicts": {},
