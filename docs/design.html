@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>设计说明</title>
+<style>
+:root {
+  --bg: #ffffff;
+  --fg: #1f2328;
+  --muted: #57606a;
+  --line: #d8dee4;
+  --code-bg: #f6f8fa;
+  --accent: #0969da;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #14161a;
+    --fg: #e6e8eb;
+    --muted: #9aa4b2;
+    --line: #2b2f36;
+    --code-bg: #1c1f24;
+    --accent: #6cb6ff;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Microsoft YaHei",
+               "PingFang SC", "Hiragino Sans GB", sans-serif;
+  font-size: 15px;
+  line-height: 1.75;
+  -webkit-font-smoothing: antialiased;
+}
+.wrap {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 28px;
+  max-width: 1320px;
+  margin: 0 auto;
+  padding: 40px 28px 120px;
+}
+@media (min-width: 1120px) {
+  .wrap { grid-template-columns: 250px minmax(0, 1fr); gap: 40px; }
+  .toc {
+    position: sticky;
+    top: 40px;
+    align-self: start;
+    max-height: calc(100vh - 80px);
+    overflow-y: auto;
+  }
+}
+main { min-width: 0; }
+h1, h2, h3 { line-height: 1.35; font-weight: 600; }
+h1 { font-size: 26px; margin: 0 0 8px; }
+h2 {
+  font-size: 20px;
+  margin: 44px 0 14px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+h3 { font-size: 16px; margin: 28px 0 10px; }
+p { margin: 10px 0; }
+ul, ol { margin: 10px 0; padding-left: 26px; }
+li { margin: 4px 0; }
+a { color: var(--accent); text-decoration: none; }
+a:hover { text-decoration: underline; }
+code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, "SFMono-Regular",
+               "Liberation Mono", Menlo, monospace;
+  font-size: 0.9em;
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+pre {
+  background: var(--code-bg);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px 18px;
+  overflow-x: auto;
+  margin: 16px 0;
+}
+pre code {
+  background: none;
+  border: 0;
+  padding: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre;
+  tab-size: 4;
+}
+table { border-collapse: collapse; margin: 16px 0; width: 100%; }
+th, td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
+th { background: var(--code-bg); font-weight: 600; }
+blockquote {
+  margin: 14px 0;
+  padding: 2px 16px;
+  border-left: 3px solid var(--line);
+  color: var(--muted);
+}
+.toc {
+  font-size: 13px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+}
+.toc-title { font-weight: 600; margin: 0 0 8px; font-size: 13px; }
+.toc ol { list-style: none; margin: 0; padding: 0; }
+.toc li { margin: 2px 0; }
+.toc .lvl3 { padding-left: 14px; font-size: 12.5px; }
+.toc a { color: var(--muted); display: block; padding: 2px 0; }
+.toc a:hover { color: var(--accent); }
+.foot {
+  margin-top: 60px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+  font-size: 12.5px;
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+<aside>
+<nav class="toc" aria-label="目录">
+<p class="toc-title">目录</p>
+<ol><li class="lvl2"><a href="#状态与合并规则">状态与合并规则</a></li><li class="lvl2"><a href="#意见的-id">意见的 id</a></li><li class="lvl2"><a href="#有依据-拆成两层">「有依据」拆成两层</a></li><li class="lvl2"><a href="#重做与上限">重做与上限</a></li><li class="lvl2"><a href="#并行">并行</a></li><li class="lvl2"><a href="#人工确认与检查点">人工确认与检查点</a></li></ol>
+</nav>
+</aside>
+<main>
+<h1>设计说明</h1>
+<h2 id="状态与合并规则">状态与合并规则</h2>
+<p>图的状态里有两个字段是并发写的：<code>drafts</code>（每个文件的审查结果）和 <code>verdicts</code>（校验结论）。
+它们不用列表累积，而是用「按文件路径覆盖」的合并规则：</p>
+<pre><code class="language-python">def merge_by_file(left, right):
+    merged = dict(left or {})
+    merged.update(right or {})
+    return merged
+</code></pre>
+<p>一条规则同时解决三件事：</p>
+<ul>
+<li>多个文件的审查并发执行，各自写自己的键，互不覆盖；</li>
+<li>重做某个文件时，用同一个键写回去，旧结果被替换；</li>
+<li>人工打回时整批重做，键不变，结果整体刷新。</li>
+</ul>
+<p>换成列表加 <code>operator.add</code> 就会出问题：重做一次，同一份意见会在列表里出现两次。</p>
+<h2 id="意见的-id">意见的 id</h2>
+<p>每条意见在进入状态时生成一个 8 位 id。校验结论、重做输入、报告条目都按这个 id 关联，
+所以重做之后新旧意见不会串。</p>
+<h2 id="有依据-拆成两层">「有依据」拆成两层</h2>
+<p>要求模型「给出有依据的意见」本身没法判定。所以把它拆成两层：</p>
+<p><strong>位置层，纯代码判定。</strong> 在 <code>verification.py</code> 里比对：</p>
+<ol>
+<li><code>file_path</code> 在本次改动里；</li>
+<li><code>line_start</code> 到 <code>line_end</code> 内至少有一行属于新增行；</li>
+<li><code>evidence</code> 的每一行去掉空白差异后，能在这次改动原文里找到；</li>
+<li><code>evidence</code> 至少有一行落在所引用的行号区间内的新增行上。</li>
+</ol>
+<p>这四条不需要模型，结果唯一，可以单独写测试。为了让第 3、4 条有得比，喂给模型的改动文本
+带真实行号，提示词里明确要求逐字引用。</p>
+<p><strong>语义层，模型判定。</strong> 位置过关的意见才送去判断「这段代码能不能支持这个结论」。
+不通过的位置层不会消耗模型调用。</p>
+<p>这样「没依据就重新生成」有明确触发条件，不会变成模型自己跟自己争论。</p>
+<h2 id="重做与上限">重做与上限</h2>
+<p><code>verify</code> 之后按条件分流：</p>
+<pre><code>有意见没通过 且 revision_round &lt; max_rounds → revise
+否则                                       → aggregate
+</code></pre>
+<p><code>revise</code> 只重做没通过的那些意见，并把失败原因一并交给模型；通过的意见原样保留。
+轮次上限默认 3，防止模型反复给不出可定位的引用时死循环。到了上限，没通过的意见
+单独列进报告的「未通过校验」一节，交给人判断。</p>
+<p>人工打回走同一个节点，区别是提示词里带上人工反馈，并且整批重做。打回时把
+<code>revision_round</code> 归零，让它重新获得完整的重做轮次。</p>
+<h2 id="并行">并行</h2>
+<p>两处并行：</p>
+<ul>
+<li><code>classify</code> 用 <code>Send</code> API 按文件扇出到 <code>review_file</code>，LangGraph 负责并发调度和汇合，
+图级别由 <code>max_concurrency</code> 限流；</li>
+<li><code>verify</code> 和 <code>revise</code> 是单节点，但内部按文件用线程池并发，同样受 <code>max_concurrency</code> 限制。</li>
+</ul>
+<h2 id="人工确认与检查点">人工确认与检查点</h2>
+<p><code>human_gate</code> 用 <code>interrupt()</code> 原地暂停，节点的剩余部分在恢复时重新执行，所以
+<code>interrupt()</code> 之前不能有副作用。</p>
+<p>检查点先内存后 SQLite。内存检查点只在进程内有效；换 SQLite 之后状态落盘，
+进程退出后可以用会话 id 在另一个进程里接着跑（<code>review resume --thread &lt;id&gt;</code>）。</p>
+<p>状态里不放 API 密钥：<code>Settings.for_state()</code> 会把它去掉，密钥由各节点在需要时从环境变量读。
+这样检查点文件和日志里都不会出现密钥。</p>
+<p>自定义类型进检查点需要在序列化器里显式放行，见 <code>graph.py</code> 的 <code>make_serde()</code>。</p>
+
+<p class="foot">由 <code>scripts/render_doc.py</code> 从 design.md 生成。改文档后重新运行脚本即可。</p>
+</main>
+</div>
+</body>
+</html>
