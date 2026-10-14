@@ -3,6 +3,7 @@ from langgraph.types import Send
 
 from review_assistant.config import Settings
 from review_assistant.graph import build_graph
+from review_assistant.nodes.classify import filter_paths
 from review_assistant.nodes.parse import fan_out_files
 from review_assistant.nodes.verify import route_after_verify
 from review_assistant.nodes.human import route_after_human_gate
@@ -51,28 +52,41 @@ def test_fan_out_falls_back_to_aggregate_without_files():
     assert fan_out_files({"files": {}, "settings": {}}) == "aggregate"
 
 
-def test_fan_out_respects_path_filter():
-    state = {
-        "files": {
-            "src/app.py": FileChange(path="src/app.py"),
-            "docs/guide.md": FileChange(path="docs/guide.md"),
-            "src/db.py": FileChange(path="src/db.py"),
-        },
-        "settings": Settings().for_state(),
-        "path_filter": ["src/"],
+def test_path_filter_keeps_matches_and_reports_the_rest():
+    files = {
+        "src/app.py": FileChange(path="src/app.py"),
+        "docs/guide.md": FileChange(path="docs/guide.md"),
+        "src/db.py": FileChange(path="src/db.py"),
     }
-    result = fan_out_files(state)
-    assert isinstance(result, list)
-    assert {item.arg["file"]["path"] for item in result} == {"src/app.py", "src/db.py"}
+    kept, dropped = filter_paths(files, ["src/"])
+    assert set(kept) == {"src/app.py", "src/db.py"}
+    assert set(dropped) == {"docs/guide.md"}
 
 
-def test_fan_out_falls_back_when_filter_matches_nothing():
-    state = {
-        "files": {"src/app.py": FileChange(path="src/app.py")},
-        "settings": Settings().for_state(),
-        "path_filter": ["nowhere/"],
+def test_path_filter_without_patterns_keeps_everything():
+    files = {"a.py": FileChange(path="a.py"), "b.py": FileChange(path="b.py")}
+    for patterns in ([], None):
+        kept, dropped = filter_paths(files, patterns or [])
+        assert set(kept) == {"a.py", "b.py"}
+        assert dropped == {}
+
+
+def test_path_filter_with_several_patterns_takes_the_union():
+    files = {
+        "src/app.py": FileChange(path="src/app.py"),
+        "docs/guide.md": FileChange(path="docs/guide.md"),
+        "db/schema.sql": FileChange(path="db/schema.sql"),
     }
-    assert fan_out_files(state) == "aggregate"
+    kept, dropped = filter_paths(files, ["src/", "docs/"])
+    assert set(kept) == {"src/app.py", "docs/guide.md"}
+    assert set(dropped) == {"db/schema.sql"}
+
+
+def test_path_filter_matching_nothing_leaves_no_files():
+    files = {"src/app.py": FileChange(path="src/app.py")}
+    kept, dropped = filter_paths(files, ["nowhere/"])
+    assert kept == {}
+    assert set(dropped) == {"src/app.py"}
 
 
 def test_verify_routes_to_revise_while_rounds_remain():

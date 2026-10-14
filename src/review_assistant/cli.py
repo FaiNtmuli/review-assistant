@@ -262,7 +262,8 @@ def run(
     db: Annotated[str, typer.Option("--db", help="sqlite 检查点文件")] = "checkpoints.db",
     thread: Annotated[Optional[str], typer.Option("--thread", help="会话 id，断点恢复时用它接上")] = None,
     paths: Annotated[
-        Optional[str], typer.Option("--paths", help="只审查路径里包含这些关键词的文件，逗号分隔")
+        Optional[str],
+        typer.Option("--paths", help="只审查路径里包含这些关键词的文件，逗号分隔，子串匹配"),
     ] = None,
     model: ModelOpt = None,
     base_url: BaseUrlOpt = None,
