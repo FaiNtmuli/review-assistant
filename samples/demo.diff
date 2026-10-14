@@ -1,0 +1,82 @@
+diff --git a/app/service.py b/app/service.py
+index bf257bc..1613f1a 100644
+--- a/app/service.py
++++ b/app/service.py
+@@ -1,23 +1,37 @@
+ import json
++import os
++
++MAX_PAGE_SIZE = 200
+ 
+ 
+ def load_config(path):
+-    with open(path) as handle:
+-        return json.load(handle)
++    handle = open(path)
++    return json.load(handle)
+ 
+ 
+-def average(values):
++def average(values, acc=[]):
+     total = 0
+     for value in values:
+         total += value
+-    return total / len(values)
++    acc.append(total / len(values))
++    return acc
+ 
+ 
+ def find_user(conn, name):
+     cursor = conn.cursor()
+-    cursor.execute("SELECT id, name FROM users WHERE active = 1")
+-    rows = cursor.fetchall()
+-    for row in rows:
+-        if row[1] == name:
+-            return row
+-    return None
++    cursor.execute("SELECT id, name FROM users WHERE name = '" + name + "'")
++    return cursor.fetchone()
++
++
++def build_report(records, page_size):
++    page_size = int(page_size)
++    if page_size > MAX_PAGE_SIZE:
++        page_size = MAX_PAGE_SIZE
++    report = {}
++    for record in records:
++        report[record["id"]] = record["name"]
++    return report
++
++
++def read_secret():
++    return os.environ["APP_SECRET"]
+diff --git a/tests/test_service.py b/tests/test_service.py
+index 0329753..67a9f42 100644
+--- a/tests/test_service.py
++++ b/tests/test_service.py
+@@ -1,5 +1,10 @@
+-from app.service import average
++from app.service import average, build_report
+ 
+ 
+ def test_average():
+-    assert average([1, 2, 3]) == 2
++    result = average([1, 2, 3])
++    assert result is not None
++
++
++def test_build_report():
++    assert build_report([], 10) == {}
+diff --git a/config/prod.yaml b/config/prod.yaml
+index 490ccf8..618da24 100644
+--- a/config/prod.yaml
++++ b/config/prod.yaml
+@@ -1,4 +1,7 @@
+ service:
+   host: 0.0.0.0
+   port: 8080
+-  debug: false
++  debug: true
++database:
++  password: pgsql-prod-9f3a1c
++  pool_size: 5

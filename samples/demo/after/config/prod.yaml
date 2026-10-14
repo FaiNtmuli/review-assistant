@@ -1,0 +1,7 @@
+service:
+  host: 0.0.0.0
+  port: 8080
+  debug: true
+database:
+  password: pgsql-prod-9f3a1c
+  pool_size: 5
