@@ -121,3 +121,4 @@ samples/demo.diff   演示用的改动
 测试全部离线，覆盖 diff 解析、文件分类、意见校验规则和图的路由分支。
 
 更详细的设计取舍见 [docs/design.md](docs/design.md)。
+按函数调用逐层展开的调用链见 [docs/call-chain.md](docs/call-chain.md)。
