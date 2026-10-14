@@ -12,6 +12,16 @@
   --line: #d8dee4;
   --code-bg: #f6f8fa;
   --accent: #0969da;
+  --kw: #57606a;
+  --cmt: #8b949e;
+  --ret: #8250df;
+  --rw-r: #0969da;
+  --rw-w: #cf222e;
+  --sf-net: #0969da;   --sf-net-bg: #ddf4ff;
+  --sf-log: #8250df;   --sf-log-bg: #f3ebff;
+  --sf-proc: #bc4c00;  --sf-proc-bg: #fff1e5;
+  --sf-file: #1a7f37;  --sf-file-bg: #dafbe1;
+  --sf-db: #0d7d8f;    --sf-db-bg: #d6f4f8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -21,6 +31,16 @@
     --line: #2b2f36;
     --code-bg: #1c1f24;
     --accent: #6cb6ff;
+    --kw: #a5b0bd;
+    --cmt: #7d8590;
+    --ret: #d2a8ff;
+    --rw-r: #79c0ff;
+    --rw-w: #ff7b72;
+    --sf-net: #79c0ff;   --sf-net-bg: rgba(56, 139, 253, 0.18);
+    --sf-log: #d2a8ff;   --sf-log-bg: rgba(163, 113, 247, 0.18);
+    --sf-proc: #ffa657;  --sf-proc-bg: rgba(219, 109, 40, 0.18);
+    --sf-file: #7ee787;  --sf-file-bg: rgba(63, 185, 80, 0.18);
+    --sf-db: #76e3ea;    --sf-db-bg: rgba(57, 197, 207, 0.18);
   }
 }
 * { box-sizing: border-box; }
@@ -93,6 +113,17 @@ pre code {
   white-space: pre;
   tab-size: 4;
 }
+.kw { color: var(--kw); font-weight: 500; }
+.c { color: var(--cmt); }
+.ret { color: var(--ret); font-weight: 600; }
+.rw-r { color: var(--rw-r); font-weight: 600; }
+.rw-w { color: var(--rw-w); font-weight: 600; }
+.tag { border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag.net { color: var(--sf-net); background: var(--sf-net-bg); }
+.tag.log { color: var(--sf-log); background: var(--sf-log-bg); }
+.tag.proc { color: var(--sf-proc); background: var(--sf-proc-bg); }
+.tag.file { color: var(--sf-file); background: var(--sf-file-bg); }
+.tag.db { color: var(--sf-db); background: var(--sf-db-bg); }
 table { border-collapse: collapse; margin: 16px 0; width: 100%; }
 th, td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
 th { background: var(--code-bg); font-weight: 600; }
@@ -136,10 +167,10 @@ blockquote {
 <h2 id="状态与合并规则">状态与合并规则</h2>
 <p>图的状态里有两个字段是并发写的：<code>drafts</code>（每个文件的审查结果）和 <code>verdicts</code>（校验结论）。
 它们不用列表累积，而是用「按文件路径覆盖」的合并规则：</p>
-<pre><code class="language-python">def merge_by_file(left, right):
+<pre><code><span class="kw">def</span> merge_by_file(left, right):
     merged = dict(left or {})
     merged.update(right or {})
-    return merged
+    <span class="kw">return</span> merged
 </code></pre>
 <p>一条规则同时解决三件事：</p>
 <ul>

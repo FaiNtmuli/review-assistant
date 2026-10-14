@@ -18,6 +18,20 @@ from markdown_it import MarkdownIt
 
 ROOT = Path(__file__).resolve().parents[1]
 HEADING_RE = re.compile(r"<h([23])>(.*?)</h\1>", re.DOTALL)
+PRE_RE = re.compile(r"<pre><code(?:\s+class=\"[^\"]*\")?>(.*?)</code></pre>", re.DOTALL)
+INLINE_RE = re.compile(r"<code>(.*?)</code>", re.DOTALL)
+
+# 调用链的标记按类型着色，颜色含义与文档开头的标签约定一致
+SIDE_EFFECTS = {"网": "net", "印": "log", "进": "proc", "文": "file", "存": "db"}
+TAG_RE = re.compile(r"\[(网|印|进|文|存)\]")
+ARROW_RE = re.compile("⟶")
+RW_RE = re.compile(r"(?<![\w])([RW]):")
+KEYWORDS = (
+    "def", "return", "if", "elif", "else", "for", "while", "try", "except",
+    "finally", "raise", "continue", "break", "import", "lambda", "yield",
+    "pass", "self", "None", "True", "False",
+)
+KEYWORD_RE = re.compile(r"(?<![\w.])(?:" + "|".join(KEYWORDS) + r")(?![\w])")
 
 STYLE = """
 :root {
@@ -27,6 +41,16 @@ STYLE = """
   --line: #d8dee4;
   --code-bg: #f6f8fa;
   --accent: #0969da;
+  --kw: #57606a;
+  --cmt: #8b949e;
+  --ret: #8250df;
+  --rw-r: #0969da;
+  --rw-w: #cf222e;
+  --sf-net: #0969da;   --sf-net-bg: #ddf4ff;
+  --sf-log: #8250df;   --sf-log-bg: #f3ebff;
+  --sf-proc: #bc4c00;  --sf-proc-bg: #fff1e5;
+  --sf-file: #1a7f37;  --sf-file-bg: #dafbe1;
+  --sf-db: #0d7d8f;    --sf-db-bg: #d6f4f8;
 }
 @media (prefers-color-scheme: dark) {
   :root {
@@ -36,6 +60,16 @@ STYLE = """
     --line: #2b2f36;
     --code-bg: #1c1f24;
     --accent: #6cb6ff;
+    --kw: #a5b0bd;
+    --cmt: #7d8590;
+    --ret: #d2a8ff;
+    --rw-r: #79c0ff;
+    --rw-w: #ff7b72;
+    --sf-net: #79c0ff;   --sf-net-bg: rgba(56, 139, 253, 0.18);
+    --sf-log: #d2a8ff;   --sf-log-bg: rgba(163, 113, 247, 0.18);
+    --sf-proc: #ffa657;  --sf-proc-bg: rgba(219, 109, 40, 0.18);
+    --sf-file: #7ee787;  --sf-file-bg: rgba(63, 185, 80, 0.18);
+    --sf-db: #76e3ea;    --sf-db-bg: rgba(57, 197, 207, 0.18);
   }
 }
 * { box-sizing: border-box; }
@@ -108,6 +142,17 @@ pre code {
   white-space: pre;
   tab-size: 4;
 }
+.kw { color: var(--kw); font-weight: 500; }
+.c { color: var(--cmt); }
+.ret { color: var(--ret); font-weight: 600; }
+.rw-r { color: var(--rw-r); font-weight: 600; }
+.rw-w { color: var(--rw-w); font-weight: 600; }
+.tag { border-radius: 4px; padding: 0 4px; font-weight: 600; }
+.tag.net { color: var(--sf-net); background: var(--sf-net-bg); }
+.tag.log { color: var(--sf-log); background: var(--sf-log-bg); }
+.tag.proc { color: var(--sf-proc); background: var(--sf-proc-bg); }
+.tag.file { color: var(--sf-file); background: var(--sf-file-bg); }
+.tag.db { color: var(--sf-db); background: var(--sf-db-bg); }
 table { border-collapse: collapse; margin: 16px 0; width: 100%; }
 th, td { border: 1px solid var(--line); padding: 7px 12px; text-align: left; }
 th { background: var(--code-bg); font-weight: 600; }
@@ -174,10 +219,55 @@ def slugify(text: str, used: dict[str, int]) -> str:
     return base if count == 0 else f"{base}-{count}"
 
 
+def color_tokens(text: str) -> str:
+    """给一行的标记着色。先后顺序固定，避免后一步匹配到前一步插入的标签。"""
+    text = KEYWORD_RE.sub(lambda m: f'<span class="kw">{m.group(0)}</span>', text)
+    text = RW_RE.sub(lambda m: f'<span class="rw-{m.group(1).lower()}">{m.group(1)}:</span>', text)
+    text = TAG_RE.sub(
+        lambda m: f'<span class="tag {SIDE_EFFECTS[m.group(1)]}">[{m.group(1)}]</span>', text
+    )
+    return ARROW_RE.sub('<span class="ret">⟶</span>', text)
+
+
+def split_comment(line: str) -> tuple[str, str | None]:
+    """把行尾注释切开。只有位于行首或空白之后的 # 才算注释起点。"""
+    for index, char in enumerate(line):
+        if char == "#" and (index == 0 or line[index - 1] in " \t"):
+            return line[:index], line[index:]
+    return line, None
+
+
+def color_line(line: str) -> str:
+    head, comment = split_comment(line)
+    head = color_tokens(head)
+    if comment is None:
+        return head
+    return head + '<span class="c">' + color_tokens(comment) + "</span>"
+
+
+def color_code_blocks(html: str) -> str:
+    """先给代码块上色，再给行内代码上色。代码块要先摘出来，防止被行内规则重复处理。"""
+    blocks: list[str] = []
+
+    def stash(match: re.Match[str]) -> str:
+        blocks.append(match.group(1))
+        return f"\x00BLOCK{len(blocks) - 1}\x00"
+
+    html = PRE_RE.sub(stash, html)
+    html = INLINE_RE.sub(lambda m: f"<code>{color_tokens(m.group(1))}</code>", html)
+
+    def restore(match: re.Match[str]) -> str:
+        inner = blocks[int(match.group(1))]
+        body = "\n".join(color_line(line) for line in inner.split("\n"))
+        return f"<pre><code>{body}</code></pre>"
+
+    return re.sub(r"\x00BLOCK(\d+)\x00", restore, html)
+
+
 def render_markdown(text: str) -> tuple[str, str]:
     """返回 (正文 HTML, 目录 HTML)。"""
     parser = MarkdownIt("commonmark", {"html": False, "linkify": False}).enable("table")
-    html = parser.render(text)
+    html = color_code_blocks(parser.render(text))
 
     used: dict[str, int] = {}
     entries: list[tuple[int, str, str]] = []
